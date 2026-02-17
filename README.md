@@ -1,6 +1,6 @@
 # bh-audit-logger
 
-Cloud-agnostic Python utilities for emitting **PHI-safe audit events** for behavioral healthcare systems.
+Cloud-agnostic Python utilities for emitting **privacy-preserving audit events** for behavioral healthcare systems.
 
 Events conform to **bh-audit-schema v1.0**:
 https://github.com/bh-healthcare/bh-audit-schema
@@ -92,7 +92,17 @@ def handler(event, context):
     # ... do work ...
 ```
 
-Each invocation emits one compact JSON line to stdout. CloudWatch Logs, GCP Cloud Logging, and Azure Monitor all ingest it without additional configuration.
+Each invocation emits one compact JSON line to stdout. Most platforms ingest stdout by default; configure your runtime logging pipeline as needed.
+
+## Sinks
+
+| Sink | Use case | Notes |
+|---|---|---|
+| `LoggingSink` *(default)* | Production | One compact JSON line per event via Python `logging`; stdout-friendly |
+| `JsonlFileSink` | Local dev, demos | Appends to a `.jsonl` file; thread-safe, flush-on-write by default |
+| `MemorySink` | Tests | Stores events in a list; use `len(sink)` and `sink.events` in assertions |
+
+Pass any sink to `AuditLogger(config=..., sink=...)`. Omit `sink` to get `LoggingSink` by default.
 
 ## Configuration
 
@@ -112,7 +122,7 @@ Each invocation emits one compact JSON line to stdout. CloudWatch Logs, GCP Clou
 | `id_factory` | `Callable` | `uuid4` | Injectable ID factory for testing |
 | `schema_version` | `str` | `"1.0"` | Locked to 1.0 unless overridden |
 
-## PHI-safe defaults
+## PHI-safe by default (via allowlists and error sanitization)
 
 - **No request/response bodies** — the library never tries to capture payloads
 - **Metadata is opt-in and strictly allowlisted** — only keys in `metadata_allowlist` pass through; values must be scalar JSON types (str, int, float, bool, null)
