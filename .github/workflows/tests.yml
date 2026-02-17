@@ -1,4 +1,4 @@
-name: CI
+name: Tests
 
 on:
   push:
@@ -10,6 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12"]
 
@@ -21,15 +22,23 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev,jsonschema]"
 
-      - name: Lint with ruff
+      - name: Check code formatting
         run: |
           ruff check src/ tests/
           ruff format --check src/ tests/
 
       - name: Run tests
-        run: pytest -v
+        run: python -m pytest -v
