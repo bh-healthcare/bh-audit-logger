@@ -1,0 +1,93 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bh-audit-logger"
+version = "0.1.0"
+description = "Cloud-agnostic Python audit logger for emitting PHI-safe behavioral healthcare audit events conforming to bh-audit-schema v1.0"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.11"
+authors = [
+    { name = "BH Healthcare", email = "oss@bh-healthcare.github.io" }
+]
+keywords = [
+    "audit",
+    "healthcare",
+    "hipaa",
+    "phi",
+    "logging",
+    "behavioral-health",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Healthcare Industry",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Logging",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+jsonschema = [
+    "jsonschema>=4.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/bh-healthcare/bh-audit-logger"
+Documentation = "https://github.com/bh-healthcare/bh-audit-logger#readme"
+Repository = "https://github.com/bh-healthcare/bh-audit-logger"
+Issues = "https://github.com/bh-healthcare/bh-audit-logger/issues"
+Changelog = "https://github.com/bh-healthcare/bh-audit-logger/blob/main/CHANGELOG.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bh_audit_logger"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE",
+]
+
+# Include JSON schema files and py.typed marker in the package
+[tool.hatch.build]
+artifacts = [
+    "*.json",
+    "py.typed",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "UP",     # pyupgrade
+]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
