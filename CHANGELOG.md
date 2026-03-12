@@ -12,6 +12,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Non-blocking / async sink variants (v0.3)
 - Additional sinks (S3, Kafka, etc.)
 
+## [0.2.0] - 2026-03-11
+
+### Added
+
+- **Sink failure isolation** — new `emit_failure_mode` config (`"silent"`, `"log"`, `"raise"`)
+  controls what happens when a sink raises during emission. Default `"log"` ensures audit
+  failures never break application logic while still surfacing diagnostics.
+- **Internal counters** — `AuditStats` dataclass with `events_emitted_total`,
+  `emit_failures_total`, `events_dropped_total`, `validation_failures_total`.
+  Access via `logger.stats.snapshot()`.
+- **Metadata string truncation** — long metadata string values are truncated to
+  `max_metadata_value_length` (default 200) with a trailing `"..."`.
+- New config fields on `AuditLoggerConfig`:
+  - `emit_failure_mode: Literal["silent", "log", "raise"]` (default `"log"`)
+  - `failure_logger_name: str` (default `"bh.audit.internal"`)
+  - `max_metadata_value_length: int` (default `200`)
+- `AuditStats` exported from package top level
+
+### Changed
+
+- `AuditLogger.emit()` and `AuditLogger.audit()` now use safe emission wrapper
+  instead of calling `sink.emit()` directly
+- Compact internal failure logs include only `event_id`, `service.name`,
+  `action.type`, `resource.type` — never the full event payload
+
+### Compatibility
+
+- Python 3.11+ unchanged
+- No breaking changes to existing public API
+- Synchronous emission remains the default in v0.2.x
+
 ## [0.1.0] - 2026-02-17
 
 ### Added
@@ -50,5 +81,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Events conform to bh-audit-schema v1.0
 - All required fields populated: schema_version, event_id, timestamp, service, actor, action, resource, outcome
 
-[Unreleased]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/bh-healthcare/bh-audit-logger/releases/tag/v0.1.0
