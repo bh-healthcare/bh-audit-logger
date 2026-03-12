@@ -5,8 +5,9 @@ Cloud-agnostic utilities for emitting structured audit events
 conforming to bh-audit-schema v1.0 for behavioral healthcare systems.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
+from bh_audit_logger._stats import AuditStats
 from bh_audit_logger.config import AuditLoggerConfig
 from bh_audit_logger.logger import AuditLogger
 from bh_audit_logger.redaction import (
@@ -27,6 +28,7 @@ __all__ = [
     # Core
     "AuditLogger",
     "AuditLoggerConfig",
+    "AuditStats",
     # Sinks
     "AuditSink",
     "JsonlFileSink",
