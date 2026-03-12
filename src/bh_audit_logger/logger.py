@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from bh_audit_logger._stats import AuditStats
 from bh_audit_logger.config import AuditLoggerConfig
 from bh_audit_logger.redaction import sanitize_error_message
 from bh_audit_logger.sinks.base import AuditSink
@@ -54,6 +55,8 @@ class AuditLogger:
     ) -> None:
         self._config = config
         self._sink: AuditSink = sink if sink is not None else LoggingSink()
+        self._stats = AuditStats()
+        self._failure_log = logging.getLogger(config.failure_logger_name)
 
     # ------------------------------------------------------------------
     # Public helpers
@@ -69,6 +72,49 @@ class AuditLogger:
         """Return the current sink."""
         return self._sink
 
+    @property
+    def stats(self) -> AuditStats:
+        """Return the internal emission counters."""
+        return self._stats
+
+    # ------------------------------------------------------------------
+    # Safe emission
+    # ------------------------------------------------------------------
+
+    def _safe_emit(self, event: dict[str, Any]) -> None:
+        """Emit via sink with failure isolation governed by config."""
+        try:
+            self._sink.emit(event)
+        except Exception as exc:
+            self._stats.increment("emit_failures_total")
+            self._handle_failure(
+                "Audit sink emit failed: event_id=%s service=%s action=%s resource=%s error=%s",
+                event,
+                exc,
+            )
+        else:
+            self._stats.increment("events_emitted_total")
+
+    def _handle_failure(
+        self,
+        msg: str,
+        event: dict[str, Any],
+        exc: Exception,
+    ) -> None:
+        """Apply emit_failure_mode policy: silent, log, or raise."""
+        mode = self._config.emit_failure_mode
+        if mode == "raise":
+            raise exc
+        if mode == "log":
+            self._failure_log.warning(
+                msg,
+                event.get("event_id"),
+                event.get("service", {}).get("name"),
+                event.get("action", {}).get("type"),
+                event.get("resource", {}).get("type"),
+                exc,
+            )
+
     # ------------------------------------------------------------------
     # Core emit
     # ------------------------------------------------------------------
@@ -78,13 +124,24 @@ class AuditLogger:
         Validate and emit a pre-built event dict.
 
         Applies metadata allowlist filtering, error sanitization,
-        then forwards to the sink.
+        then forwards to the sink.  Validation failures are governed
+        by ``emit_failure_mode`` (same as sink failures).
 
         Args:
             event: A dict that should conform to bh-audit-schema v1.0.
         """
-        event = self._prepare(event)
-        self._sink.emit(event)
+        try:
+            event = self._prepare(event)
+        except Exception as exc:
+            self._stats.increment("validation_failures_total")
+            self._stats.increment("events_dropped_total")
+            self._handle_failure(
+                "Audit validation failed: event_id=%s service=%s action=%s resource=%s error=%s",
+                event,
+                exc,
+            )
+            return
+        self._safe_emit(event)
 
     def _prepare(self, event: dict[str, Any]) -> dict[str, Any]:
         """Apply allowlist, sanitization, and validation. Returns cleaned event."""
@@ -151,8 +208,18 @@ class AuditLogger:
         if metadata:
             event["metadata"] = metadata
 
-        event = self._prepare(event)
-        self._sink.emit(event)
+        try:
+            event = self._prepare(event)
+        except Exception as exc:
+            self._stats.increment("validation_failures_total")
+            self._stats.increment("events_dropped_total")
+            self._handle_failure(
+                "Audit validation failed: event_id=%s service=%s action=%s resource=%s error=%s",
+                event,
+                exc,
+            )
+            return event
+        self._safe_emit(event)
         return event
 
     # ------------------------------------------------------------------
@@ -328,6 +395,9 @@ class AuditLogger:
                     type(value).__name__,
                 )
                 continue
+            max_len = self._config.max_metadata_value_length
+            if isinstance(value, str) and len(value) > max_len:
+                value = value[:max_len] + "..."
             filtered[key] = value
 
         event = dict(event)

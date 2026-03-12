@@ -40,7 +40,7 @@ def test_version_exposed() -> None:
     from bh_audit_logger import __version__
 
     assert isinstance(__version__, str)
-    assert __version__ == "0.1.0"
+    assert __version__ == "0.2.0"
 
 
 def test_all_exports_defined() -> None:
@@ -51,6 +51,7 @@ def test_all_exports_defined() -> None:
         "__version__",
         "AuditLogger",
         "AuditLoggerConfig",
+        "AuditStats",
         "AuditSink",
         "JsonlFileSink",
         "LoggingSink",

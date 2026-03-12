@@ -94,6 +94,51 @@ def handler(event, context):
 
 Each invocation emits one compact JSON line to stdout. Most platforms ingest stdout by default; configure your runtime logging pipeline as needed.
 
+## Production hardening
+
+### Sink failure isolation
+
+By default, sink failures are logged but never propagate to your application logic:
+
+```python
+config = AuditLoggerConfig(
+    service_name="my-service",
+    emit_failure_mode="log",       # "silent", "log" (default), or "raise"
+    failure_logger_name="bh.audit.internal",
+)
+```
+
+- `"silent"` — swallow errors, increment counter only
+- `"log"` — log a compact summary (event_id, service, action, resource) without the full payload
+- `"raise"` — re-raise the original exception (use in dev/test)
+
+### Metadata restrictions
+
+Metadata values are enforced to be scalar JSON types (`str`, `int`, `float`, `bool`, `None`). Dict, list, and tuple values are silently dropped. Long strings are truncated:
+
+```python
+config = AuditLoggerConfig(
+    service_name="my-service",
+    metadata_allowlist={"batch_id", "region"},
+    max_metadata_value_length=200,   # default; truncated strings end with "..."
+)
+```
+
+### Internal counters
+
+Track emission health via lightweight counters:
+
+```python
+logger = AuditLogger(config=config)
+# ... emit events ...
+print(logger.stats.snapshot())
+# {"events_emitted_total": 42, "emit_failures_total": 0, "events_dropped_total": 0, "validation_failures_total": 0}
+```
+
+### Synchronous emission
+
+Audit emission is synchronous in v0.2.x. For high-throughput systems, use `LoggingSink` (which defers I/O to your logging pipeline) or plan for async sinks in v0.3.
+
 ## Sinks
 
 | Sink | Use case | Notes |
