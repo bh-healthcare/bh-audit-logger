@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sink failure isolation** — new `emit_failure_mode` config (`"silent"`, `"log"`, `"raise"`)
   controls what happens when a sink raises during emission. Default `"log"` ensures audit
   failures never break application logic while still surfacing diagnostics.
-- **Internal counters** — `AuditStats` dataclass with `events_emitted_total`,
+- **Internal counters** — thread-safe `AuditStats` with `events_emitted_total`,
   `emit_failures_total`, `events_dropped_total`, `validation_failures_total`.
   Access via `logger.stats.snapshot()`.
 - **Metadata string truncation** — long metadata string values are truncated to
@@ -36,6 +36,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of calling `sink.emit()` directly
 - Compact internal failure logs include only `event_id`, `service.name`,
   `action.type`, `resource.type` — never the full event payload
+- `AuditStats.increment()` uses `Literal` type for counter names — typos are
+  now caught by type checkers instead of raising `AttributeError` at runtime
+
+### Fixed
+
+- **ValidationError bypasses failure isolation** — `_prepare()` raised uncaught
+  `ValidationError` that crashed callers even under `emit_failure_mode="silent"`.
+  Now wrapped in the same failure-isolation path; increments
+  `validation_failures_total` and `events_dropped_total`.
+- **Dead counters** — `validation_failures_total` and `events_dropped_total` are
+  now correctly incremented when validation fails or events are silently dropped.
+- **Success counter in wrong position** — `events_emitted_total` was incremented
+  inside the `try` block after `sink.emit()`; now in `else` clause so a counter
+  error cannot be misattributed as a sink failure.
+- **Email redaction regex** — `[A-Z|a-z]` contained a literal `|` in the character
+  class; fixed to `[A-Za-z]`.
 
 ### Compatibility
 

@@ -85,21 +85,31 @@ class AuditLogger:
         """Emit via sink with failure isolation governed by config."""
         try:
             self._sink.emit(event)
-            self._stats.events_emitted_total += 1
         except Exception as exc:
-            self._stats.emit_failures_total += 1
-            mode = self._config.emit_failure_mode
-            if mode == "raise":
-                raise
-            if mode == "log":
-                self._failure_log.warning(
-                    "Audit sink emit failed: event_id=%s service=%s action=%s resource=%s error=%s",
-                    event.get("event_id"),
-                    event.get("service", {}).get("name"),
-                    event.get("action", {}).get("type"),
-                    event.get("resource", {}).get("type"),
-                    exc,
-                )
+            self._stats.increment("emit_failures_total")
+            self._handle_failure(
+                "Audit sink emit failed: event_id=%s service=%s action=%s resource=%s error=%s",
+                event, exc,
+            )
+        else:
+            self._stats.increment("events_emitted_total")
+
+    def _handle_failure(
+        self, msg: str, event: dict[str, Any], exc: Exception,
+    ) -> None:
+        """Apply emit_failure_mode policy: silent, log, or raise."""
+        mode = self._config.emit_failure_mode
+        if mode == "raise":
+            raise exc
+        if mode == "log":
+            self._failure_log.warning(
+                msg,
+                event.get("event_id"),
+                event.get("service", {}).get("name"),
+                event.get("action", {}).get("type"),
+                event.get("resource", {}).get("type"),
+                exc,
+            )
 
     # ------------------------------------------------------------------
     # Core emit
@@ -110,12 +120,22 @@ class AuditLogger:
         Validate and emit a pre-built event dict.
 
         Applies metadata allowlist filtering, error sanitization,
-        then forwards to the sink.
+        then forwards to the sink.  Validation failures are governed
+        by ``emit_failure_mode`` (same as sink failures).
 
         Args:
             event: A dict that should conform to bh-audit-schema v1.0.
         """
-        event = self._prepare(event)
+        try:
+            event = self._prepare(event)
+        except Exception as exc:
+            self._stats.increment("validation_failures_total")
+            self._stats.increment("events_dropped_total")
+            self._handle_failure(
+                "Audit event validation failed: event_id=%s service=%s action=%s resource=%s error=%s",
+                event, exc,
+            )
+            return
         self._safe_emit(event)
 
     def _prepare(self, event: dict[str, Any]) -> dict[str, Any]:
@@ -183,7 +203,16 @@ class AuditLogger:
         if metadata:
             event["metadata"] = metadata
 
-        event = self._prepare(event)
+        try:
+            event = self._prepare(event)
+        except Exception as exc:
+            self._stats.increment("validation_failures_total")
+            self._stats.increment("events_dropped_total")
+            self._handle_failure(
+                "Audit event validation failed: event_id=%s service=%s action=%s resource=%s error=%s",
+                event, exc,
+            )
+            return event
         self._safe_emit(event)
         return event
 
