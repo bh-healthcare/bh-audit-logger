@@ -18,6 +18,7 @@ from bh_audit_logger import AuditLogger, AuditLoggerConfig, MemorySink
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 class _ExplodingSink:
     """A sink that always raises on emit."""
 
@@ -49,6 +50,7 @@ def _make_logger(
 # ---------------------------------------------------------------------------
 # Sink failure isolation
 # ---------------------------------------------------------------------------
+
 
 class TestSinkFailureIsolation:
     """Sink errors must not break caller logic by default."""
@@ -84,6 +86,7 @@ class TestSinkFailureIsolation:
 # Internal counters
 # ---------------------------------------------------------------------------
 
+
 class TestCounters:
     """AuditStats counters must increment correctly."""
 
@@ -110,6 +113,7 @@ class TestCounters:
 # ---------------------------------------------------------------------------
 # Metadata safety
 # ---------------------------------------------------------------------------
+
 
 class TestMetadataSafety:
     """Metadata must drop non-scalars and truncate long strings."""
@@ -176,6 +180,7 @@ class TestMetadataSafety:
 # ---------------------------------------------------------------------------
 # Compact failure logging
 # ---------------------------------------------------------------------------
+
 
 class TestFailureLogging:
     """Internal failure logs must be compact and never contain full payload."""

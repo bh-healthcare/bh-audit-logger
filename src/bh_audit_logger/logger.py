@@ -89,13 +89,17 @@ class AuditLogger:
             self._stats.increment("emit_failures_total")
             self._handle_failure(
                 "Audit sink emit failed: event_id=%s service=%s action=%s resource=%s error=%s",
-                event, exc,
+                event,
+                exc,
             )
         else:
             self._stats.increment("events_emitted_total")
 
     def _handle_failure(
-        self, msg: str, event: dict[str, Any], exc: Exception,
+        self,
+        msg: str,
+        event: dict[str, Any],
+        exc: Exception,
     ) -> None:
         """Apply emit_failure_mode policy: silent, log, or raise."""
         mode = self._config.emit_failure_mode
@@ -133,7 +137,8 @@ class AuditLogger:
             self._stats.increment("events_dropped_total")
             self._handle_failure(
                 "Audit validation failed: event_id=%s service=%s action=%s resource=%s error=%s",
-                event, exc,
+                event,
+                exc,
             )
             return
         self._safe_emit(event)
@@ -210,7 +215,8 @@ class AuditLogger:
             self._stats.increment("events_dropped_total")
             self._handle_failure(
                 "Audit validation failed: event_id=%s service=%s action=%s resource=%s error=%s",
-                event, exc,
+                event,
+                exc,
             )
             return event
         self._safe_emit(event)
