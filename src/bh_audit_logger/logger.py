@@ -132,7 +132,7 @@ class AuditLogger:
             self._stats.increment("validation_failures_total")
             self._stats.increment("events_dropped_total")
             self._handle_failure(
-                "Audit event validation failed: event_id=%s service=%s action=%s resource=%s error=%s",
+                "Audit validation failed: event_id=%s service=%s action=%s resource=%s error=%s",
                 event, exc,
             )
             return
@@ -209,7 +209,7 @@ class AuditLogger:
             self._stats.increment("validation_failures_total")
             self._stats.increment("events_dropped_total")
             self._handle_failure(
-                "Audit event validation failed: event_id=%s service=%s action=%s resource=%s error=%s",
+                "Audit validation failed: event_id=%s service=%s action=%s resource=%s error=%s",
                 event, exc,
             )
             return event

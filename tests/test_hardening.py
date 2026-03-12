@@ -14,7 +14,6 @@ import pytest
 
 from bh_audit_logger import AuditLogger, AuditLoggerConfig, MemorySink
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
