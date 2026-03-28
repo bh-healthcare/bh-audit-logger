@@ -2,12 +2,27 @@
 bh-audit-logger: PHI-safe audit logging utilities for Python.
 
 Cloud-agnostic utilities for emitting structured audit events
-conforming to bh-audit-schema v1.0 for behavioral healthcare systems.
+conforming to bh-audit-schema v1.1 for behavioral healthcare systems.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
+from bh_audit_logger._queue import EmitQueue
 from bh_audit_logger._stats import AuditStats
+from bh_audit_logger._types import (
+    ActionBlock,
+    ActionType,
+    ActorBlock,
+    ActorType,
+    AuditEvent,
+    CorrelationBlock,
+    DataClassification,
+    EmitFailureMode,
+    OutcomeBlock,
+    OutcomeStatus,
+    ResourceBlock,
+    ServiceBlock,
+)
 from bh_audit_logger.config import AuditLoggerConfig
 from bh_audit_logger.logger import AuditLogger
 from bh_audit_logger.redaction import (
@@ -29,6 +44,20 @@ __all__ = [
     "AuditLogger",
     "AuditLoggerConfig",
     "AuditStats",
+    "EmitQueue",
+    # Type definitions
+    "ActionBlock",
+    "ActionType",
+    "ActorBlock",
+    "ActorType",
+    "AuditEvent",
+    "CorrelationBlock",
+    "DataClassification",
+    "EmitFailureMode",
+    "OutcomeBlock",
+    "OutcomeStatus",
+    "ResourceBlock",
+    "ServiceBlock",
     # Sinks
     "AuditSink",
     "JsonlFileSink",

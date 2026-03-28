@@ -7,10 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned
+## [0.3.0] - 2026-03-28
 
-- Non-blocking / async sink variants (v0.3)
-- Additional sinks (S3, Kafka, etc.)
+### Added
+
+- **Non-blocking async emission** — new `EmitQueue` with configurable bounded
+  `asyncio.Queue` (default 10 000 events). Events are enqueued without blocking;
+  a background task drains the queue and forwards to the sink via
+  `run_in_executor()`. When the queue is full, events are dropped and
+  `events_dropped_total` is incremented.
+- **Typed event blocks** — `TypedDict` definitions for all event sub-blocks
+  (`ServiceBlock`, `ActorBlock`, `ActionBlock`, `ResourceBlock`, `OutcomeBlock`,
+  `CorrelationBlock`, `IntegrityBlock`, `AuditEvent`) and `Literal` type aliases
+  (`ActionType`, `ActorType`, `OutcomeStatus`, `DataClassification`). Exported
+  from the top-level package for static checking.
+- **Frozen config** — `AuditLoggerConfig` is now `@dataclass(frozen=True)` to
+  prevent runtime mutation of security settings (e.g. `sanitize_errors`,
+  `metadata_allowlist`). `metadata_allowlist` uses `frozenset` for immutability.
+- **Schema validation CI test** — `test_schema_validation.py` validates emitted
+  events against the vendored bh-audit-schema v1.1 JSON schema.
+- **v1.1 FAILURE compliance** — string errors now emit `error_type: "ApplicationError"`
+  to satisfy the v1.1 conditional requirement that FAILURE outcomes always include
+  both `error_type` and `error_message`.
+- **v1.1 minimal validation** — `validate_event_minimal()` now checks nested
+  required fields (`service.name`, `actor.subject_id`, `actor.subject_type`,
+  `outcome.status`) and enforces the FAILURE/DENIED conditional rules.
+- `MemorySink` now accepts optional `maxlen` parameter to bound memory growth.
+- `default_actor_type` now uses `Literal["human", "service"]` type.
+- `schema_version` config field now typed as `Literal["1.1"]`.
+- `validate_event_minimal()` now validates UUIDs with strict `8-4-4-4-12` pattern.
+
+### Changed
+
+- **Schema version bumped to 1.1** — vendored bh-audit-schema v1.1 with HIPAA/SOC
+  compliance rule set, DENIED outcome status, conditional FAILURE validation,
+  maxLength/minLength bounds on all string fields, and scalar-only metadata.
+- `schema_version` config default updated from `"1.0"` to `"1.1"`.
+- `schema/__init__.py` now uses `@lru_cache` for `load_schema()` to avoid
+  repeated disk reads.
+- `MemorySink` is now thread-safe with internal locking.
+- `MemorySink.events` is now a property returning a snapshot (list copy).
+- `validate_event_minimal()` accepts both `"1.0"` and `"1.1"` schema versions.
+
+### Fixed
+
+- **Timestamp format** — uses `strftime` instead of fragile `.replace("+00:00", "Z")`.
+- **String error missing error_type** — when `error` was a string (not an Exception),
+  `_build_outcome` omitted `error_type`, producing schema-invalid FAILURE events.
+  Now defaults to `"ApplicationError"`.
+- **UUID validation tightened** — `validate_event_minimal()` now uses strict
+  `8-4-4-4-12` UUID regex instead of overly permissive 16+ hex chars pattern.
+
+### Compatibility
+
+- Python 3.11+ unchanged
+- **Breaking**: `AuditLoggerConfig` is now frozen — attribute assignment after creation raises.
+- **Breaking**: `metadata_allowlist` is now `frozenset[str]` instead of `set[str]`.
+- **Breaking**: `schema_version` default changed from `"1.0"` to `"1.1"`.
+- `MemorySink.events` is now a property (list copy) instead of a direct attribute.
 
 ## [0.2.0] - 2026-03-11
 
@@ -97,6 +151,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Events conform to bh-audit-schema v1.0
 - All required fields populated: schema_version, event_id, timestamp, service, actor, action, resource, outcome
 
-[Unreleased]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/bh-healthcare/bh-audit-logger/releases/tag/v0.1.0
