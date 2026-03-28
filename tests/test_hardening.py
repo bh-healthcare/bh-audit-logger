@@ -1,14 +1,14 @@
 """
-Tests for v0.2.0 production hardening.
+Tests for v0.3.0 production hardening.
 
 Covers sink failure isolation, metadata safety, internal counters,
-and compact failure logging.
+compact failure logging, and frozen config.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 
@@ -32,15 +32,15 @@ _FIXED_EVENT_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 def _make_logger(
     sink: Any = None,
     *,
-    emit_failure_mode: str = "log",
-    metadata_allowlist: set[str] | None = None,
+    emit_failure_mode: Literal["silent", "log", "raise"] = "log",
+    metadata_allowlist: frozenset[str] | None = None,
     max_metadata_value_length: int = 200,
 ) -> AuditLogger:
     cfg = AuditLoggerConfig(
         service_name="hardening-test",
         service_environment="test",
-        emit_failure_mode=emit_failure_mode,  # type: ignore[arg-type]
-        metadata_allowlist=metadata_allowlist or set(),
+        emit_failure_mode=emit_failure_mode,
+        metadata_allowlist=metadata_allowlist or frozenset(),
         max_metadata_value_length=max_metadata_value_length,
         id_factory=lambda: _FIXED_EVENT_ID,
     )
@@ -73,12 +73,24 @@ class TestSinkFailureIsolation:
     def test_original_exception_not_masked(self) -> None:
         """raise mode must re-raise the original exception type, not a wrapper."""
 
-        class _TypeErrorSink:
+        class _IOErrorSink:
             def emit(self, event: dict[str, Any]) -> None:
-                raise TypeError("bad type")
+                raise OSError("disk full")
 
-        logger = _make_logger(_TypeErrorSink(), emit_failure_mode="raise")
-        with pytest.raises(TypeError, match="bad type"):
+        logger = _make_logger(_IOErrorSink(), emit_failure_mode="raise")
+        with pytest.raises(OSError, match="disk full"):
+            logger.audit("READ", resource={"type": "Patient"})
+
+    def test_programming_error_always_propagates(self) -> None:
+        """TypeError/AttributeError from a buggy sink must always propagate,
+        regardless of emit_failure_mode."""
+
+        class _BuggySink:
+            def emit(self, event: dict[str, Any]) -> None:
+                raise TypeError("wrong argument type")
+
+        logger = _make_logger(_BuggySink(), emit_failure_mode="silent")
+        with pytest.raises(TypeError, match="wrong argument type"):
             logger.audit("READ", resource={"type": "Patient"})
 
 
@@ -120,7 +132,7 @@ class TestMetadataSafety:
 
     def test_drops_non_scalar_dict(self) -> None:
         logger = _make_logger(
-            metadata_allowlist={"safe", "nested"},
+            metadata_allowlist=frozenset({"safe", "nested"}),
         )
         event = logger.audit(
             "READ",
@@ -131,7 +143,7 @@ class TestMetadataSafety:
 
     def test_drops_non_scalar_list(self) -> None:
         logger = _make_logger(
-            metadata_allowlist={"safe", "items"},
+            metadata_allowlist=frozenset({"safe", "items"}),
         )
         event = logger.audit(
             "READ",
@@ -142,7 +154,7 @@ class TestMetadataSafety:
 
     def test_drops_non_scalar_tuple(self) -> None:
         logger = _make_logger(
-            metadata_allowlist={"coords"},
+            metadata_allowlist=frozenset({"coords"}),
         )
         event = logger.audit(
             "READ",
@@ -153,7 +165,7 @@ class TestMetadataSafety:
 
     def test_truncates_long_strings(self) -> None:
         logger = _make_logger(
-            metadata_allowlist={"note"},
+            metadata_allowlist=frozenset({"note"}),
             max_metadata_value_length=10,
         )
         event = logger.audit(
@@ -166,7 +178,7 @@ class TestMetadataSafety:
 
     def test_short_strings_not_truncated(self) -> None:
         logger = _make_logger(
-            metadata_allowlist={"note"},
+            metadata_allowlist=frozenset({"note"}),
             max_metadata_value_length=100,
         )
         event = logger.audit(
@@ -205,7 +217,7 @@ class TestFailureLogging:
         logger = _make_logger(
             _ExplodingSink(),
             emit_failure_mode="log",
-            metadata_allowlist={"secret"},
+            metadata_allowlist=frozenset({"secret"}),
         )
         with caplog.at_level(logging.WARNING, logger="bh.audit.internal"):
             logger.audit(
@@ -219,9 +231,15 @@ class TestFailureLogging:
         assert "do-not-log-this" not in msg
         assert "user_sensitive" not in msg
 
-    def test_silent_mode_emits_no_logs(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_silent_mode_emits_debug_only(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Silent mode now logs at DEBUG (never truly silent for HIPAA traceability)."""
         logger = _make_logger(_ExplodingSink(), emit_failure_mode="silent")
         with caplog.at_level(logging.DEBUG, logger="bh.audit.internal"):
             logger.audit("READ", resource={"type": "Patient"})
 
-        assert len(caplog.records) == 0
+        debug_records = [r for r in caplog.records if r.levelno == logging.DEBUG]
+        warning_or_above = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert len(debug_records) >= 1
+        # The only WARNING is the config startup warning, not a failure log
+        for rec in warning_or_above:
+            assert "emit failed" not in rec.getMessage()
