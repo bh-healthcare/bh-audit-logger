@@ -15,8 +15,7 @@ from typing import Any
 
 
 class LoggingSink:
-    """
-    Audit sink that emits events via Python logging.
+    """Audit sink that emits events via Python logging.
 
     Each event is emitted as a single compact JSON line, suitable for
     log aggregation systems that capture stdout/stderr.
@@ -25,9 +24,9 @@ class LoggingSink:
         logger_name: Name for the logger (default "bh.audit").
         level: Log level as string or int (default "INFO").
 
-    Example:
-        sink = LoggingSink(logger_name="bh.audit", level="INFO")
-        sink.emit(event)
+    Raises:
+        ValueError: If *level* is a string that does not match a known
+            Python logging level.
     """
 
     def __init__(
@@ -40,18 +39,19 @@ class LoggingSink:
 
     @staticmethod
     def _resolve_level(level: str | int) -> int:
-        """Convert level string to int if needed."""
+        """Convert level string to int.  Raises ``ValueError`` on unknown strings."""
         if isinstance(level, int):
             return level
-        return getattr(logging, level.upper(), logging.INFO)
+        resolved = getattr(logging, level.upper(), None)
+        if resolved is None or not isinstance(resolved, int):
+            raise ValueError(
+                f"Unknown logging level: {level!r}. "
+                f"Use one of: DEBUG, INFO, WARNING, ERROR, CRITICAL"
+            )
+        return resolved
 
     def emit(self, event: dict[str, Any]) -> None:
-        """
-        Emit an audit event as a single JSON log line.
-
-        Args:
-            event: The audit event dictionary conforming to bh-audit-schema.
-        """
+        """Emit an audit event as a single JSON log line."""
         line = json.dumps(event, separators=(",", ":"), ensure_ascii=False)
         self._logger.log(self._level, line, extra={"audit": True})
 

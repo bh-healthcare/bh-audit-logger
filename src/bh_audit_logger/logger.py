@@ -1,7 +1,7 @@
 """
 Core AuditLogger class.
 
-Builds and emits PHI-safe audit events conforming to bh-audit-schema v1.0.
+Builds and emits PHI-safe audit events conforming to bh-audit-schema v1.1.
 """
 
 from __future__ import annotations
@@ -10,6 +10,15 @@ import logging
 from typing import Any
 
 from bh_audit_logger._stats import AuditStats
+from bh_audit_logger._types import (
+    ActionBlock,
+    ActionType,
+    ActorBlock,
+    AuditEvent,
+    DataClassification,
+    OutcomeBlock,
+    ServiceBlock,
+)
 from bh_audit_logger.config import AuditLoggerConfig
 from bh_audit_logger.redaction import sanitize_error_message
 from bh_audit_logger.sinks.base import AuditSink
@@ -18,34 +27,18 @@ from bh_audit_logger.validation import validate_event_minimal
 
 _log = logging.getLogger(__name__)
 
-# JSON scalar types allowed in metadata values
 _SCALAR_TYPES = (str, int, float, bool, type(None))
 
 
 class AuditLogger:
-    """
-    Emit PHI-safe audit events conforming to bh-audit-schema v1.0.
+    """Emit PHI-safe audit events conforming to bh-audit-schema v1.1.
 
-    Events are built as plain dicts, validated for required fields,
+    Events are built as typed dicts, validated for required fields,
     then forwarded to a pluggable sink (default: LoggingSink).
 
     Args:
         config: AuditLoggerConfig with service identity and behaviour settings.
         sink: An AuditSink implementation. Defaults to LoggingSink.
-
-    Example::
-
-        from bh_audit_logger import AuditLogger, AuditLoggerConfig
-
-        logger = AuditLogger(
-            config=AuditLoggerConfig(service_name="my-worker", service_environment="prod")
-        )
-        logger.audit(
-            "READ",
-            actor={"subject_id": "svc_etl", "subject_type": "service"},
-            resource={"type": "Patient", "id": "pat_123"},
-            outcome={"status": "SUCCESS"},
-        )
     """
 
     def __init__(
@@ -81,10 +74,20 @@ class AuditLogger:
     # Safe emission
     # ------------------------------------------------------------------
 
+    _PROGRAMMING_ERRORS = (TypeError, AttributeError, KeyError, RecursionError)
+
     def _safe_emit(self, event: dict[str, Any]) -> None:
-        """Emit via sink with failure isolation governed by config."""
+        """Emit via sink with failure isolation governed by config.
+
+        Clear programming errors (TypeError, AttributeError, KeyError,
+        RecursionError) always propagate so bugs in custom sinks are
+        surfaced immediately.  All other exceptions are routed through
+        the configured failure mode.
+        """
         try:
             self._sink.emit(event)
+        except self._PROGRAMMING_ERRORS:
+            raise
         except Exception as exc:
             self._stats.increment("emit_failures_total")
             self._handle_failure(
@@ -101,34 +104,37 @@ class AuditLogger:
         event: dict[str, Any],
         exc: Exception,
     ) -> None:
-        """Apply emit_failure_mode policy: silent, log, or raise."""
+        """Apply emit_failure_mode policy.
+
+        - ``"raise"``: re-raise the exception.
+        - ``"log"``: log at WARNING with compact summary.
+        - ``"silent"``: log at DEBUG (never truly silent for HIPAA traceability).
+        """
         mode = self._config.emit_failure_mode
         if mode == "raise":
             raise exc
+        args = (
+            event.get("event_id"),
+            event.get("service", {}).get("name"),
+            event.get("action", {}).get("type"),
+            event.get("resource", {}).get("type"),
+            exc,
+        )
         if mode == "log":
-            self._failure_log.warning(
-                msg,
-                event.get("event_id"),
-                event.get("service", {}).get("name"),
-                event.get("action", {}).get("type"),
-                event.get("resource", {}).get("type"),
-                exc,
-            )
+            self._failure_log.warning(msg, *args)
+        else:
+            self._failure_log.debug(msg, *args)
 
     # ------------------------------------------------------------------
     # Core emit
     # ------------------------------------------------------------------
 
     def emit(self, event: dict[str, Any]) -> None:
-        """
-        Validate and emit a pre-built event dict.
+        """Validate and emit a pre-built event dict.
 
         Applies metadata allowlist filtering, error sanitization,
         then forwards to the sink.  Validation failures are governed
         by ``emit_failure_mode`` (same as sink failures).
-
-        Args:
-            event: A dict that should conform to bh-audit-schema v1.0.
         """
         try:
             event = self._prepare(event)
@@ -156,41 +162,29 @@ class AuditLogger:
 
     def audit(
         self,
-        action_type: str,
+        action_type: ActionType,
         *,
-        actor: dict[str, Any] | None = None,
+        actor: ActorBlock | dict[str, Any] | None = None,
         resource: dict[str, Any] | None = None,
-        outcome: dict[str, Any] | None = None,
+        outcome: OutcomeBlock | dict[str, Any] | None = None,
         correlation: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
         phi_touched: bool | None = None,
-        data_classification: str | None = None,
+        data_classification: DataClassification | None = None,
         error: Exception | str | None = None,
-    ) -> dict[str, Any]:
-        """
-        Build, emit, and return an audit event.
+    ) -> dict[str, Any] | None:
+        """Build, emit, and return an audit event.
 
-        Args:
-            action_type: Action type string (READ, CREATE, UPDATE, DELETE, LOGIN, etc.).
-            actor: Actor dict with at least subject_id and subject_type.
-            resource: Resource dict with at least type.
-            outcome: Outcome dict with status (SUCCESS/FAILURE). Auto-built if error is set.
-            correlation: Optional correlation dict (request_id, trace_id, etc.).
-            metadata: Optional metadata dict (filtered by allowlist).
-            phi_touched: Whether PHI was touched.
-            data_classification: Data classification (PHI, PII, NONE, UNKNOWN).
-            error: If set, outcome status is FAILURE and error message is sanitized.
-
-        Returns:
-            The emitted event dict.
+        Returns the emitted event dict on success, or ``None`` if the event
+        was dropped due to validation failure.
         """
         cfg = self._config
         now = cfg.time_source()
 
-        event: dict[str, Any] = {
+        event: AuditEvent = {
             "schema_version": cfg.schema_version,
             "event_id": cfg.id_factory(),
-            "timestamp": now.isoformat().replace("+00:00", "Z"),
+            "timestamp": now.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
             "service": self._build_service(),
             "actor": self._build_actor(actor),
             "action": self._build_action(
@@ -198,29 +192,29 @@ class AuditLogger:
                 phi_touched=phi_touched,
                 data_classification=data_classification,
             ),
-            "resource": resource or {"type": "unknown"},
+            "resource": resource or {"type": "unknown"},  # type: ignore[typeddict-item]
             "outcome": self._build_outcome(outcome, error),
         }
 
         if correlation:
-            event["correlation"] = correlation
+            event["correlation"] = correlation  # type: ignore[typeddict-item]
 
         if metadata:
-            event["metadata"] = metadata
+            event["metadata"] = metadata  # type: ignore[typeddict-item]
 
         try:
-            event = self._prepare(event)
+            prepared: dict[str, Any] = self._prepare(event)  # type: ignore[arg-type]
         except Exception as exc:
             self._stats.increment("validation_failures_total")
             self._stats.increment("events_dropped_total")
             self._handle_failure(
                 "Audit validation failed: event_id=%s service=%s action=%s resource=%s error=%s",
-                event,
+                event,  # type: ignore[arg-type]
                 exc,
             )
-            return event
-        self._safe_emit(event)
-        return event
+            return None
+        self._safe_emit(prepared)
+        return prepared
 
     # ------------------------------------------------------------------
     # Convenience helpers
@@ -229,11 +223,11 @@ class AuditLogger:
     def audit_login_success(
         self,
         *,
-        actor: dict[str, Any] | None = None,
+        actor: ActorBlock | dict[str, Any] | None = None,
         resource: dict[str, Any] | None = None,
         correlation: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | None:
         """Emit a LOGIN / SUCCESS event."""
         return self.audit(
             "LOGIN",
@@ -247,12 +241,12 @@ class AuditLogger:
     def audit_login_failure(
         self,
         *,
-        actor: dict[str, Any] | None = None,
+        actor: ActorBlock | dict[str, Any] | None = None,
         resource: dict[str, Any] | None = None,
         error: Exception | str | None = None,
         correlation: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | None:
         """Emit a LOGIN / FAILURE event."""
         return self.audit(
             "LOGIN",
@@ -265,22 +259,18 @@ class AuditLogger:
 
     def audit_access(
         self,
-        action_type: str,
+        action_type: ActionType,
         *,
-        actor: dict[str, Any] | None = None,
+        actor: ActorBlock | dict[str, Any] | None = None,
         resource: dict[str, Any] | None = None,
-        outcome: dict[str, Any] | None = None,
+        outcome: OutcomeBlock | dict[str, Any] | None = None,
         correlation: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
         phi_touched: bool | None = None,
-        data_classification: str | None = None,
+        data_classification: DataClassification | None = None,
         error: Exception | str | None = None,
-    ) -> dict[str, Any]:
-        """
-        Emit a generic access event (READ / CREATE / UPDATE / DELETE).
-
-        Convenience wrapper around audit() for common CRUD patterns.
-        """
+    ) -> dict[str, Any] | None:
+        """Emit a generic access event (READ / CREATE / UPDATE / DELETE)."""
         return self.audit(
             action_type,
             actor=actor,
@@ -297,10 +287,9 @@ class AuditLogger:
     # Private builders
     # ------------------------------------------------------------------
 
-    def _build_service(self) -> dict[str, Any]:
-        """Build the service block."""
+    def _build_service(self) -> ServiceBlock:
         cfg = self._config
-        svc: dict[str, Any] = {
+        svc: ServiceBlock = {
             "name": cfg.service_name,
             "environment": cfg.service_environment,
         }
@@ -308,14 +297,13 @@ class AuditLogger:
             svc["version"] = cfg.service_version
         return svc
 
-    def _build_actor(self, actor: dict[str, Any] | None) -> dict[str, Any]:
-        """Build the actor block, applying defaults if needed."""
+    def _build_actor(self, actor: ActorBlock | dict[str, Any] | None) -> ActorBlock:
         cfg = self._config
         if actor:
             result = dict(actor)
             result.setdefault("subject_id", cfg.default_actor_id)
             result.setdefault("subject_type", cfg.default_actor_type)
-            return result
+            return result  # type: ignore[return-value]
         return {
             "subject_id": cfg.default_actor_id,
             "subject_type": cfg.default_actor_type,
@@ -323,13 +311,12 @@ class AuditLogger:
 
     def _build_action(
         self,
-        action_type: str,
+        action_type: ActionType,
         *,
         phi_touched: bool | None = None,
-        data_classification: str | None = None,
-    ) -> dict[str, Any]:
-        """Build the action block."""
-        action: dict[str, Any] = {"type": action_type}
+        data_classification: DataClassification | None = None,
+    ) -> ActionBlock:
+        action: ActionBlock = {"type": action_type}
         if phi_touched is not None:
             action["phi_touched"] = phi_touched
         action["data_classification"] = data_classification or "UNKNOWN"
@@ -337,10 +324,13 @@ class AuditLogger:
 
     def _build_outcome(
         self,
-        outcome: dict[str, Any] | None,
+        outcome: OutcomeBlock | dict[str, Any] | None,
         error: Exception | str | None,
-    ) -> dict[str, Any]:
-        """Build the outcome block."""
+    ) -> OutcomeBlock:
+        """Build the outcome block.
+
+        v1.1 conditional: FAILURE requires both error_type and error_message.
+        """
         if error is not None:
             error_msg = str(error)
             if self._config.sanitize_errors:
@@ -348,13 +338,14 @@ class AuditLogger:
                     error_msg,
                     max_len=self._config.error_message_max_len,
                 )
-            result: dict[str, Any] = {
+            error_type = (
+                type(error).__name__ if isinstance(error, Exception) else "ApplicationError"
+            )
+            return {
                 "status": "FAILURE",
+                "error_type": error_type,
                 "error_message": error_msg,
             }
-            if isinstance(error, Exception):
-                result["error_type"] = type(error).__name__
-            return result
 
         if outcome:
             result = dict(outcome)
@@ -363,7 +354,7 @@ class AuditLogger:
                     result["error_message"],
                     max_len=self._config.error_message_max_len,
                 )
-            return result
+            return result  # type: ignore[return-value]
 
         return {"status": "SUCCESS"}
 
@@ -386,10 +377,10 @@ class AuditLogger:
         filtered: dict[str, Any] = {}
         for key, value in raw_meta.items():
             if key not in allowlist:
-                _log.debug("Dropping non-allowlisted metadata key: %s", key)
+                _log.warning("Dropping non-allowlisted metadata key: %s", key)
                 continue
             if not isinstance(value, _SCALAR_TYPES):
-                _log.debug(
+                _log.warning(
                     "Dropping metadata key %s: value type %s is not a scalar",
                     key,
                     type(value).__name__,

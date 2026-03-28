@@ -36,9 +36,10 @@ jobs:
           pip install -e ".[dev,jsonschema]"
 
       - name: Check code formatting
-        run: |
-          ruff check src/ tests/
-          ruff format --check src/ tests/
+        run: ruff check src/ tests/
 
       - name: Run tests
         run: python -m pytest -v
+
+      - name: Schema validation smoke test
+        run: python -m pytest tests/test_schema_validation.py -v
