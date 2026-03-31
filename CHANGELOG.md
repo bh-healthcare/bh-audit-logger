@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-03-30
+
+### Added
+
+- **Runtime schema validation** — new `validate_events` config flag enables
+  validation of every emitted event against the vendored bh-audit-schema JSON
+  schema before it reaches the sink. Requires the `[jsonschema]` optional extra.
+- **`AuditValidationError`** — raised when `validation_failure_mode="raise"` and
+  an event fails schema validation. Includes `event_id` and `errors` list.
+- **`validate_event_schema()`** — list-returning validation API (returns error
+  messages instead of raising). Exported from the top-level package.
+- **Validation timing** — `AuditStats` tracks cumulative validation time via
+  `validation_time_ms_total` counter and `record_validation_time()` method.
+  Included in `snapshot()` output.
+- **`audit_access_denied()`** — convenience method for emitting DENIED outcome
+  events with `error_type` (e.g. `RoleDenied`, `CrossOrgAccessDenied`).
+- **Schema version negotiation** — `target_schema_version` config field (default
+  `"1.1"`) controls the `schema_version` in emitted events. When set to `"1.0"`,
+  DENIED outcomes are automatically downgraded to FAILURE for backward compat.
+- **Version-aware schema loading** — `load_schema()` and `get_schema_path()` now
+  accept a `version` parameter. Vendored v1.0 schema added alongside v1.1.
+- **Example events** — four JSON examples in `examples/` demonstrating batch
+  export, worker read, role-based denial, and cross-org access denial.
+- **Migration guide** — `docs/migrating-1.0-to-1.1.md` covering all schema
+  changes and logger upgrade steps.
+
+### Changed
+
+- **`schema_version` config renamed to `target_schema_version`** — the new name
+  better reflects its purpose (selecting which schema version to target). Type
+  narrowed to `Literal["1.0", "1.1"]`.
+- `load_schema()` now uses `@lru_cache(maxsize=4)` keyed on version string.
+
+### Compatibility
+
+- **Breaking**: `schema_version` config field removed in favor of
+  `target_schema_version`. Direct users of `config.schema_version` must update.
+- `validate_events=True` requires `pip install bh-audit-logger[jsonschema]` —
+  an `ImportError` is raised eagerly at config construction if missing.
+- `AuditStats.snapshot()` return type widened to `dict[str, int | float]` to
+  accommodate `validation_time_ms_total`.
+
 ## [0.3.0] - 2026-03-28
 
 ### Added
@@ -151,7 +193,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Events conform to bh-audit-schema v1.0
 - All required fields populated: schema_version, event_id, timestamp, service, actor, action, resource, outcome
 
-[Unreleased]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/bh-healthcare/bh-audit-logger/releases/tag/v0.1.0

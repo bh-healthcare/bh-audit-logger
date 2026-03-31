@@ -23,18 +23,19 @@ class AuditStats:
     or operational dashboards.
 
     Counter values are read-only via properties; mutation is only possible
-    through ``increment()``.
+    through ``increment()`` or ``record_validation_time()``.
     """
 
     __slots__ = ("_lock", "_counters")
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._counters: dict[str, int] = {
+        self._counters: dict[str, int | float] = {
             "events_emitted_total": 0,
             "emit_failures_total": 0,
             "events_dropped_total": 0,
             "validation_failures_total": 0,
+            "validation_time_ms_total": 0.0,
         }
 
     def increment(self, name: _CounterName, amount: int = 1) -> None:
@@ -44,23 +45,32 @@ class AuditStats:
         with self._lock:
             self._counters[name] += amount
 
-    def snapshot(self) -> dict[str, int]:
+    def record_validation_time(self, ms: float) -> None:
+        """Add *ms* milliseconds to the validation_time_ms_total counter."""
+        with self._lock:
+            self._counters["validation_time_ms_total"] += ms
+
+    def snapshot(self) -> dict[str, int | float]:
         """Return a plain-dict copy of the current counter values."""
         with self._lock:
             return dict(self._counters)
 
     @property
     def events_emitted_total(self) -> int:
-        return self._counters["events_emitted_total"]
+        return int(self._counters["events_emitted_total"])
 
     @property
     def emit_failures_total(self) -> int:
-        return self._counters["emit_failures_total"]
+        return int(self._counters["emit_failures_total"])
 
     @property
     def events_dropped_total(self) -> int:
-        return self._counters["events_dropped_total"]
+        return int(self._counters["events_dropped_total"])
 
     @property
     def validation_failures_total(self) -> int:
-        return self._counters["validation_failures_total"]
+        return int(self._counters["validation_failures_total"])
+
+    @property
+    def validation_time_ms_total(self) -> float:
+        return float(self._counters["validation_time_ms_total"])

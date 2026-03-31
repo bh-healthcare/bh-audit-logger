@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "bh-audit-logger"
-version = "0.3.0"
+version = "0.4.0"
 description = "Cloud-agnostic Python audit logger for emitting PHI-safe behavioral healthcare audit events conforming to bh-audit-schema v1.1"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -41,7 +41,7 @@ dev = [
     "mypy>=1.0.0",
 ]
 jsonschema = [
-    "jsonschema>=4.0.0",
+    "jsonschema>=4.0.0,<5",        # Full JSON schema validation (optional)
 ]
 
 [project.urls]

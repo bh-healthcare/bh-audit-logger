@@ -2,8 +2,11 @@
 Shared fixtures for bh-audit-logger tests.
 """
 
+from __future__ import annotations
+
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -32,3 +35,19 @@ def test_config() -> AuditLoggerConfig:
         service_name="test-service",
         service_environment="test",
     )
+
+
+def make_test_event(**overrides: Any) -> dict[str, Any]:
+    """Return a minimal valid v1.1 event dict, with optional overrides."""
+    event: dict[str, Any] = {
+        "schema_version": "1.1",
+        "event_id": "12345678-1234-5678-1234-567812345678",
+        "timestamp": "2026-03-30T12:00:00.000Z",
+        "service": {"name": "test-service", "environment": "test"},
+        "actor": {"subject_id": "test-user", "subject_type": "human"},
+        "action": {"type": "READ", "data_classification": "UNKNOWN"},
+        "resource": {"type": "TestResource"},
+        "outcome": {"status": "SUCCESS"},
+    }
+    event.update(overrides)
+    return event
