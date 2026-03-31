@@ -12,6 +12,7 @@ def test_public_api_imports() -> None:
         AuditLogger,
         AuditLoggerConfig,
         AuditSink,
+        AuditValidationError,
         EmitQueue,
         JsonlFileSink,
         LoggingSink,
@@ -21,11 +22,13 @@ def test_public_api_imports() -> None:
         redact_tokens,
         sanitize_error_message,
         validate_event_minimal,
+        validate_event_schema,
     )
 
     assert AuditLogger is not None
     assert AuditLoggerConfig is not None
     assert AuditSink is not None
+    assert AuditValidationError is not None
     assert JsonlFileSink is not None
     assert LoggingSink is not None
     assert MemorySink is not None
@@ -35,6 +38,7 @@ def test_public_api_imports() -> None:
     assert callable(contains_phi_tokens)
     assert callable(redact_tokens)
     assert callable(validate_event_minimal)
+    assert callable(validate_event_schema)
 
 
 def test_typed_event_blocks_importable() -> None:
@@ -71,7 +75,7 @@ def test_version_exposed() -> None:
     from bh_audit_logger import __version__
 
     assert isinstance(__version__, str)
-    assert __version__ == "0.3.0"
+    assert __version__ == "0.4.0"
 
 
 def test_all_exports_defined() -> None:
@@ -107,9 +111,11 @@ def test_all_exports_defined() -> None:
         "redact_tokens",
         "sanitize_error_message",
         # Validation
+        "AuditValidationError",
         "ValidationError",
         "validate_event",
         "validate_event_minimal",
+        "validate_event_schema",
     }
 
     assert set(bh_audit_logger.__all__) == expected_exports
@@ -133,3 +139,4 @@ def test_audit_logger_has_expected_methods() -> None:
     assert hasattr(AuditLogger, "audit_login_success")
     assert hasattr(AuditLogger, "audit_login_failure")
     assert hasattr(AuditLogger, "audit_access")
+    assert hasattr(AuditLogger, "audit_access_denied")

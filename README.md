@@ -107,7 +107,8 @@ Track emission health via lightweight counters:
 logger = AuditLogger(config=config)
 # ... emit events ...
 print(logger.stats.snapshot())
-# {"events_emitted_total": 42, "emit_failures_total": 0, "events_dropped_total": 0, "validation_failures_total": 0}
+# {"events_emitted_total": 42, "emit_failures_total": 0, "events_dropped_total": 0,
+#  "validation_failures_total": 0, "validation_time_ms_total": 0.0}
 ```
 
 ### Non-blocking async emission (optional)
@@ -123,6 +124,88 @@ queue.enqueue(event)
 # ... later ...
 await queue.shutdown()
 ```
+
+## Runtime schema validation
+
+v0.4 adds optional runtime validation of emitted events against the vendored JSON schema. This catches schema-invalid events **before** they reach your sink.
+
+```bash
+pip install bh-audit-logger[jsonschema]
+```
+
+```python
+from bh_audit_logger import AuditLogger, AuditLoggerConfig
+
+logger = AuditLogger(
+    config=AuditLoggerConfig(
+        service_name="my-service",
+        validate_events=True,                    # enable runtime validation
+        validation_failure_mode="drop",          # "drop" (default), "log_and_emit", or "raise"
+        target_schema_version="1.1",             # "1.0" or "1.1" (default)
+    )
+)
+```
+
+| Mode | Behavior |
+|---|---|
+| `"drop"` | Log warning, increment `validation_failures_total` + `events_dropped_total`, do not emit |
+| `"log_and_emit"` | Log warning, increment `validation_failures_total`, emit anyway |
+| `"raise"` | Raise `AuditValidationError` with the event_id and error list |
+
+### Validation timing
+
+Validation adds measurable latency. Track it via stats:
+
+```python
+stats = logger.stats.snapshot()
+print(stats["validation_time_ms_total"])  # cumulative ms spent in schema validation
+```
+
+## DENIED outcomes
+
+v0.4 adds `audit_access_denied()` for authorization denials (distinct from operational failures):
+
+```python
+logger.audit_access_denied(
+    "READ",
+    error_type="RoleDenied",
+    error_message="Role 'viewer' lacks access to ClinicalNote",
+    actor={"subject_id": "user-42", "subject_type": "human"},
+    resource={"type": "ClinicalNote", "id": "note-555"},
+)
+```
+
+### Cross-org access detection
+
+Use `owner_org_id` in the actor block to flag cross-organization access attempts:
+
+```python
+logger.audit_access_denied(
+    "EXPORT",
+    error_type="CrossOrgAccessDenied",
+    error_message="Actor org-200 cannot export resources owned by org-300",
+    actor={
+        "subject_id": "user-77",
+        "subject_type": "human",
+        "org_id": "org-200",
+        "owner_org_id": "org-300",
+    },
+    resource={"type": "PatientRecord"},
+)
+```
+
+## Schema version negotiation
+
+Target a specific schema version for backward compatibility:
+
+```python
+config = AuditLoggerConfig(
+    service_name="my-service",
+    target_schema_version="1.0",  # emit v1.0-compatible events
+)
+```
+
+When targeting v1.0, DENIED outcomes are automatically downgraded to FAILURE (since v1.0 does not support DENIED).
 
 ## Sinks
 
@@ -151,11 +234,13 @@ Pass any sink to `AuditLogger(config=..., sink=...)`. Omit `sink` to get `Loggin
 | `emit_failure_mode` | `Literal` | `"log"` | How to handle sink failures |
 | `time_source` | `Callable` | `utcnow` | Injectable time source for testing |
 | `id_factory` | `Callable` | `uuid4` | Injectable ID factory for testing |
-| `schema_version` | `str` | `"1.1"` | Schema version for emitted events |
+| `validate_events` | `bool` | `False` | Enable runtime JSON schema validation |
+| `validation_failure_mode` | `Literal` | `"drop"` | How to handle validation failures: `"drop"`, `"log_and_emit"`, `"raise"` |
+| `target_schema_version` | `Literal["1.0", "1.1"]` | `"1.1"` | Schema version for emitted events |
 
 ## Typed event blocks
 
-v0.3 exports `TypedDict` definitions for all event sub-blocks:
+v0.3+ exports `TypedDict` definitions for all event sub-blocks:
 
 ```python
 from bh_audit_logger import (

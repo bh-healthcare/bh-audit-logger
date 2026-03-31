@@ -7,6 +7,7 @@ Builds and emits PHI-safe audit events conforming to bh-audit-schema v1.1.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from bh_audit_logger._stats import AuditStats
@@ -84,6 +85,49 @@ class AuditLogger:
         surfaced immediately.  All other exceptions are routed through
         the configured failure mode.
         """
+        if self._config.validate_events:
+            from bh_audit_logger._validation import AuditValidationError, validate_event_schema
+
+            try:
+                t0 = time.perf_counter()
+                errors = validate_event_schema(event, self._config.target_schema_version)
+                elapsed_ms = (time.perf_counter() - t0) * 1000.0
+                self._stats.record_validation_time(elapsed_ms)
+            except self._PROGRAMMING_ERRORS:
+                raise
+            except Exception as exc:
+                self._stats.increment("emit_failures_total")
+                self._handle_failure(
+                    "Audit schema validation error: event_id=%s service=%s action=%s "
+                    "resource=%s error=%s",
+                    event,
+                    exc,
+                )
+                return
+
+            if errors:
+                mode = self._config.validation_failure_mode
+                if mode == "raise":
+                    raise AuditValidationError(event.get("event_id", "unknown"), errors)
+
+                self._stats.increment("validation_failures_total")
+                preview = errors[:3]
+                self._failure_log.warning(
+                    "Audit schema validation failed: event_id=%s service=%s action=%s "
+                    "resource=%s errors=%s",
+                    event.get("event_id"),
+                    event.get("service", {}).get("name"),
+                    event.get("action", {}).get("type"),
+                    event.get("resource", {}).get("type"),
+                    preview,
+                )
+
+                if mode == "log_and_emit":
+                    pass  # fall through to emit below
+                else:
+                    self._stats.increment("events_dropped_total")
+                    return
+
         try:
             self._sink.emit(event)
         except self._PROGRAMMING_ERRORS:
@@ -182,7 +226,7 @@ class AuditLogger:
         now = cfg.time_source()
 
         event: AuditEvent = {
-            "schema_version": cfg.schema_version,
+            "schema_version": cfg.target_schema_version,
             "event_id": cfg.id_factory(),
             "timestamp": now.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
             "service": self._build_service(),
@@ -283,6 +327,40 @@ class AuditLogger:
             error=error,
         )
 
+    def audit_access_denied(
+        self,
+        action_type: ActionType,
+        *,
+        error_type: str = "AccessDenied",
+        error_message: str | None = None,
+        actor: ActorBlock | dict[str, Any] | None = None,
+        resource: dict[str, Any] | None = None,
+        correlation: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+        phi_touched: bool | None = None,
+        data_classification: DataClassification | None = None,
+    ) -> dict[str, Any] | None:
+        """Emit an access-denied audit event.
+
+        Returns the emitted event dict on success, or ``None`` if the event
+        was dropped due to validation failure (when validation_failure_mode
+        is "drop" or "log_and_emit"). Callers should check for None if they
+        need to confirm emission succeeded.
+        """
+        outcome: OutcomeBlock = {"status": "DENIED", "error_type": error_type}
+        if error_message:
+            outcome["error_message"] = error_message
+        return self.audit(
+            action_type,
+            actor=actor,
+            resource=resource,
+            outcome=outcome,
+            correlation=correlation,
+            metadata=metadata,
+            phi_touched=phi_touched,
+            data_classification=data_classification,
+        )
+
     # ------------------------------------------------------------------
     # Private builders
     # ------------------------------------------------------------------
@@ -330,6 +408,8 @@ class AuditLogger:
         """Build the outcome block.
 
         v1.1 conditional: FAILURE requires both error_type and error_message.
+        When targeting v1.0, DENIED is downgraded to FAILURE with an
+        error_message derived from the error_type.
         """
         if error is not None:
             error_msg = str(error)
@@ -354,6 +434,9 @@ class AuditLogger:
                     result["error_message"],
                     max_len=self._config.error_message_max_len,
                 )
+            if self._config.target_schema_version == "1.0" and result.get("status") == "DENIED":
+                result["status"] = "FAILURE"
+                result.setdefault("error_message", result.get("error_type", "AccessDenied"))
             return result  # type: ignore[return-value]
 
         return {"status": "SUCCESS"}

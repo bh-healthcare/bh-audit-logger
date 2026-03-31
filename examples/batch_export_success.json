@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.1",
+  "event_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "timestamp": "2026-03-30T02:15:00.000Z",
+  "service": {
+    "name": "sample-datalake",
+    "environment": "prod",
+    "version": "2.4.1"
+  },
+  "actor": {
+    "subject_id": "etl-pipeline-nightly",
+    "subject_type": "service"
+  },
+  "action": {
+    "type": "EXPORT",
+    "phi_touched": true,
+    "data_classification": "PHI"
+  },
+  "resource": {
+    "type": "PatientBatch",
+    "id": "batch-20260330-001"
+  },
+  "outcome": {
+    "status": "SUCCESS"
+  },
+  "metadata": {
+    "batch_size": 1250,
+    "region": "us-east-1"
+  }
+}

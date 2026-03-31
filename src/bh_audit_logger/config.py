@@ -11,8 +11,6 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Literal
 
-from bh_audit_logger.schema import SCHEMA_VERSION as _SCHEMA_VERSION
-
 _log = logging.getLogger("bh.audit.internal")
 
 
@@ -40,7 +38,9 @@ class AuditLoggerConfig:
     max_metadata_value_length: int = 200
     time_source: Callable[[], datetime] = field(default_factory=lambda: lambda: datetime.now(UTC))
     id_factory: Callable[[], str] = field(default_factory=lambda: lambda: str(uuid.uuid4()))
-    schema_version: str = _SCHEMA_VERSION
+    validate_events: bool = False
+    validation_failure_mode: Literal["drop", "log_and_emit", "raise"] = "drop"
+    target_schema_version: Literal["1.0", "1.1"] = "1.1"
 
     def __post_init__(self) -> None:
         if not self.service_name or not self.service_name.strip():
@@ -62,3 +62,11 @@ class AuditLoggerConfig:
                 "Consider 'log' for production HIPAA deployments.",
                 self.service_name,
             )
+        if self.validate_events:
+            try:
+                import jsonschema  # noqa: F401
+            except ImportError as exc:
+                raise ImportError(
+                    "validate_events=True requires jsonschema. "
+                    "Install with: pip install bh-audit-logger[jsonschema]"
+                ) from exc

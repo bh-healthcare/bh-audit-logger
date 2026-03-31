@@ -1,8 +1,8 @@
 """
-Vendored bh-audit-schema v1.1 for offline validation.
+Vendored bh-audit-schema for offline validation.
 
-The JSON schema is included in this package to enable validation
-without network access.
+Supports loading schema by version (1.0, 1.1). The JSON schemas are
+included in this package to enable validation without network access.
 """
 
 from __future__ import annotations
@@ -13,29 +13,32 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = "1.1"
-SCHEMA_PATH = Path(__file__).parent / "audit_event.schema.json"
+
+_VERSIONS_DIR = Path(__file__).parent / "versions"
 
 
-def get_schema_path() -> Path:
-    """Return the path to the vendored audit event schema."""
-    return SCHEMA_PATH
+def get_schema_path(version: str = "1.1") -> Path:
+    """Return the path to the vendored audit event schema for *version*."""
+    return _VERSIONS_DIR / version / "audit_event.schema.json"
 
 
-@lru_cache(maxsize=1)
-def load_schema() -> dict[str, Any]:
-    """Load and return the audit event schema as a dictionary.
+@lru_cache(maxsize=4)
+def load_schema(version: str = "1.1") -> dict[str, Any]:
+    """Load and return the audit event schema for *version* as a dictionary.
 
-    The result is cached to avoid repeated disk reads.
+    The result is cached per version to avoid repeated disk reads.
 
     Raises:
         FileNotFoundError: With an actionable message if the schema file
-            is missing (e.g. corrupt install).
+            is missing (e.g. corrupt install or unsupported version).
     """
+    path = get_schema_path(version)
     try:
-        with open(SCHEMA_PATH) as f:
+        with open(path) as f:
             return json.load(f)
     except FileNotFoundError:
         raise FileNotFoundError(
-            f"Vendored audit schema not found at {SCHEMA_PATH}. "
+            f"Vendored audit schema v{version} not found at {path}. "
+            f"Available versions: {sorted(p.name for p in _VERSIONS_DIR.iterdir() if p.is_dir())}. "
             f"Reinstall the package: pip install --force-reinstall bh-audit-logger"
         ) from None
