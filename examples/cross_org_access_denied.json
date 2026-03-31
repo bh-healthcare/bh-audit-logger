@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.1",
+  "event_id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+  "timestamp": "2026-03-30T14:22:11.789Z",
+  "service": {
+    "name": "records-gateway",
+    "environment": "prod"
+  },
+  "actor": {
+    "subject_id": "user-77",
+    "subject_type": "human",
+    "org_id": "org-200",
+    "owner_org_id": "org-300",
+    "roles": ["clinician"]
+  },
+  "action": {
+    "type": "EXPORT",
+    "phi_touched": false,
+    "data_classification": "PHI"
+  },
+  "resource": {
+    "type": "PatientRecord",
+    "id": "record-8888",
+    "patient_id": "patient-999"
+  },
+  "outcome": {
+    "status": "DENIED",
+    "error_type": "CrossOrgAccessDenied",
+    "error_message": "Actor org-200 cannot export resources owned by org-300"
+  }
+}

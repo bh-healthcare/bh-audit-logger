@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.1",
+  "event_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+  "timestamp": "2026-03-30T08:30:45.123Z",
+  "service": {
+    "name": "benefits-worker",
+    "environment": "staging"
+  },
+  "actor": {
+    "subject_id": "worker-benefits-sync",
+    "subject_type": "service"
+  },
+  "action": {
+    "type": "READ",
+    "data_classification": "PII"
+  },
+  "resource": {
+    "type": "InsurancePlan",
+    "id": "plan-9876"
+  },
+  "outcome": {
+    "status": "SUCCESS"
+  },
+  "correlation": {
+    "request_id": "req-abc123",
+    "trace_id": "trace-def456"
+  }
+}

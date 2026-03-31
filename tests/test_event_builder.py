@@ -454,9 +454,9 @@ class TestFrozenConfig:
         with pytest.raises(AttributeError):
             cfg.service_name = "hacked"  # type: ignore[misc]
 
-    def test_config_schema_version_default(self) -> None:
+    def test_config_target_schema_version_default(self) -> None:
         cfg = AuditLoggerConfig(service_name="test")
-        assert cfg.schema_version == "1.1"
+        assert cfg.target_schema_version == "1.1"
 
     def test_config_rejects_empty_service_name(self) -> None:
         with pytest.raises(ValueError, match="service_name"):
