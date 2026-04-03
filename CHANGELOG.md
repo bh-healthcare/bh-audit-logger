@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     flattened into top-level attributes for GSI projection.
 - **`[dynamodb]` optional extra** — `boto3>=1.34,<2` for DynamoDB sink.
 - **`[all]` convenience extra** — bundles `jsonschema` and `boto3`.
+- **`docs/deploying-dynamodb.md`** — production deployment guide covering
+  table creation (Terraform / AWS CLI), IAM minimum-privilege policy,
+  environment variable configuration, retention strategy, capacity planning,
+  failure handling, and monitoring checklist.
 
 ## [0.4.0] - 2026-03-30
 

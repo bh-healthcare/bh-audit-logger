@@ -213,9 +213,12 @@ When targeting v1.0, DENIED outcomes are automatically downgraded to FAILURE (si
 |---|---|---|
 | `LoggingSink` *(default)* | Production | One compact JSON line per event via Python `logging`; stdout-friendly |
 | `JsonlFileSink` | Local dev, demos | Appends to a `.jsonl` file; thread-safe, flush-on-write by default |
+| `DynamoDBSink` | Production (AWS) | Single-table DynamoDB design with 3 GSIs for HIPAA compliance queries. `pip install bh-audit-logger[dynamodb]` |
 | `MemorySink` | Tests | Bounded optional (`maxlen`); use `len(sink)` and `sink.events` in assertions |
 
 Pass any sink to `AuditLogger(config=..., sink=...)`. Omit `sink` to get `LoggingSink` by default.
+
+For `DynamoDBSink` production deployment (table creation, IAM, environment configuration), see [docs/deploying-dynamodb.md](docs/deploying-dynamodb.md).
 
 ## Configuration
 
