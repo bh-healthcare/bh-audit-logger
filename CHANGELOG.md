@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **DynamoDBSink** — new optional sink that writes audit events to a DynamoDB
+  single-table design optimized for healthcare compliance queries. Requires
+  `pip install bh-audit-logger[dynamodb]` (boto3).
+  - Composite primary key (`service_name#date` / `timestamp#event_id`) for
+    efficient time-range queries within a service.
+  - Three Global Secondary Indexes: `patient_id-index` (HIPAA §164.312(b)
+    access review), `actor-index` (§164.308(a)(1)(ii)(D) activity review),
+    and `outcome-index` (access denial monitoring).
+  - Query helpers: `query_by_patient()`, `query_by_actor()`, `query_denials()`
+    with optional time-range filtering.
+  - Configurable TTL (default 2190 days ≈ 6 years) for automatic retention
+    management. Set `ttl_days=None` to disable.
+  - `create_table=True` for dev/test table auto-creation with all GSIs.
+  - Deduplication via `ConditionExpression` on `event_id` — duplicate writes
+    are silently skipped.
+  - Full event stored as compact JSON in `event_json` attribute; key fields
+    flattened into top-level attributes for GSI projection.
+- **`[dynamodb]` optional extra** — `boto3>=1.34,<2` for DynamoDB sink.
+- **`[all]` convenience extra** — bundles `jsonschema` and `boto3`.
+- **`docs/deploying-dynamodb.md`** — production deployment guide covering
+  table creation (Terraform / AWS CLI), IAM minimum-privilege policy,
+  environment variable configuration, retention strategy, capacity planning,
+  failure handling, and monitoring checklist.
+
 ## [0.4.0] - 2026-03-30
 
 ### Added
