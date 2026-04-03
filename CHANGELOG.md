@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Chain hashing (integrity)** — tamper-evident audit trails via SHA-256
+  chain hashing.  Each event gets an `integrity` block with `event_hash`,
+  `prev_event_hash`, and `hash_alg`.
+  - `canonical_serialize()` — deterministic JSON serialization (sorted keys,
+    compact separators, UTF-8, excludes `integrity` key).
+  - `compute_chain_hash()` — computes integrity block from canonical bytes +
+    optional previous hash.  Supports `sha256`, `sha384`, `sha512`.
+  - `ChainState` — thread-safe, in-memory chain state for single-process
+    deployments.  Tracks the most recent event hash for chaining.
+  - `DynamoDBChainState` — multi-process safe chain state backed by a
+    dedicated DynamoDB table with conditional writes.  Retries on conflict
+    (up to 3 times), then falls back to unchained emission.
+  - `LedgerSink` — JSONL file sink with built-in chain hashing.  Wraps
+    `JsonlFileSink` + internal `ChainState` so every event written to disk
+    includes an `integrity` block.
+  - `enable_integrity` config flag on `AuditLoggerConfig` (default `False`).
+    When enabled, `AuditLogger` injects integrity into every event before
+    it reaches any sink (DynamoDB, JSONL, Logging, Memory, etc.).
+  - `hash_algorithm` config field (`"sha256"` / `"sha384"` / `"sha512"`).
+  - `AuditLogger` accepts optional `chain_state` parameter for resuming
+    chains or sharing state across loggers.
+  - `DynamoDBSink._flatten_for_dynamo` extracts `chain_hash` and
+    `prev_chain_hash` from the `integrity` block into top-level DynamoDB
+    attributes for direct querying.
+  - New type exports: `HashAlgorithm`, `IntegrityBlock`.
 - **DynamoDBSink** — new optional sink that writes audit events to a DynamoDB
   single-table design optimized for healthcare compliance queries. Requires
   `pip install bh-audit-logger[dynamodb]` (boto3).
@@ -32,6 +57,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   table creation (Terraform / AWS CLI), IAM minimum-privilege policy,
   environment variable configuration, retention strategy, capacity planning,
   failure handling, and monitoring checklist.
+- **`integrity_events_total` / `chain_gaps_total` counters** on `AuditStats`
+  — track successful integrity injections and chain computation failures.
+- **`DynamoDBChainState.last_hash` property** — reads the current chain
+  head from DynamoDB, matching the in-memory `ChainState` API.
+- **`DynamoDBChainState.service_name` property** — exposes the partition
+  key for inspection.
+- **Algorithm validation** — `compute_chain_hash()` now raises `ValueError`
+  for unsupported algorithms (only `sha256`, `sha384`, `sha512` allowed).
+- **Double-hashing warning** — `LedgerSink.emit()` logs a warning if the
+  event already contains an `integrity` block (possible double-hashing when
+  `AuditLogger.enable_integrity` is also active).
+- **`project.urls` Author link** — added `Author = "https://tanmayakumar.com"`
+  to `pyproject.toml` for PyPI project page.
+
+### Fixed
+
+- **Critical: hash input order** — `compute_chain_hash()` now feeds
+  `prev_hash` bytes before canonical bytes, matching the design doc and
+  `bh-fastapi-audit`. Previous order (`canonical + prev_hash`) produced
+  incompatible chain hashes.
+- **`DynamoDBChainState` API alignment** — `service_name` moved from
+  `advance()` parameter to constructor parameter (default `"default"`).
+  `advance(event_hash)` signature now matches in-memory `ChainState`,
+  making the two implementations interchangeable.
+- **Chain state table billing mode** — `DynamoDBChainState._create_table`
+  uses `BillingMode="PAY_PER_REQUEST"` instead of `ProvisionedThroughput`,
+  matching the design doc and production best practice.
+- **Integrity injection resilience** — `AuditLogger._safe_emit()` wraps
+  chain hash computation in `try/except`. On failure, the event still emits
+  (without integrity) and `chain_gaps_total` is incremented.
+- **`ChainState` memory layout** — added `__slots__` for tighter memory.
+- **Logging namespace** — chain state logging moved from `bh.audit.internal`
+  to `bh.audit.chain` for easier filtering.
 
 ## [0.4.0] - 2026-03-30
 

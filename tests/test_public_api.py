@@ -88,6 +88,11 @@ def test_all_exports_defined() -> None:
         "AuditLoggerConfig",
         "AuditStats",
         "EmitQueue",
+        # Chain hashing / integrity
+        "ChainState",
+        "DynamoDBChainState",
+        "canonical_serialize",
+        "compute_chain_hash",
         # Types
         "ActionBlock",
         "ActionType",
@@ -97,6 +102,8 @@ def test_all_exports_defined() -> None:
         "CorrelationBlock",
         "DataClassification",
         "EmitFailureMode",
+        "HashAlgorithm",
+        "IntegrityBlock",
         "OutcomeBlock",
         "OutcomeStatus",
         "ResourceBlock",
@@ -105,6 +112,7 @@ def test_all_exports_defined() -> None:
         "AuditSink",
         "DynamoDBSink",
         "JsonlFileSink",
+        "LedgerSink",
         "LoggingSink",
         "MemorySink",
         # Redaction
@@ -154,3 +162,35 @@ def test_audit_logger_has_expected_methods() -> None:
     assert hasattr(AuditLogger, "audit_login_failure")
     assert hasattr(AuditLogger, "audit_access")
     assert hasattr(AuditLogger, "audit_access_denied")
+
+
+def test_chain_hashing_exports() -> None:
+    """Chain hashing public API should be importable."""
+    from bh_audit_logger import (
+        ChainState,
+        HashAlgorithm,
+        IntegrityBlock,
+        LedgerSink,
+        canonical_serialize,
+        compute_chain_hash,
+    )
+
+    assert ChainState is not None
+    assert LedgerSink is not None
+    assert callable(canonical_serialize)
+    assert callable(compute_chain_hash)
+    assert HashAlgorithm is not None
+    assert IntegrityBlock is not None
+
+
+def test_dynamodb_chain_state_importable() -> None:
+    """DynamoDBChainState should be importable when boto3 is available."""
+    import pytest
+
+    pytest.importorskip("boto3")
+    from bh_audit_logger import DynamoDBChainState
+
+    assert hasattr(DynamoDBChainState, "advance")
+    assert hasattr(DynamoDBChainState, "table_name")
+    assert hasattr(DynamoDBChainState, "service_name")
+    assert hasattr(DynamoDBChainState, "last_hash")
