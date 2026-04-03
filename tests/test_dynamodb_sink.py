@@ -80,6 +80,17 @@ class TestTableCreation:
     def test_table_name_property(self, dynamo_sink: DynamoDBSink) -> None:
         assert dynamo_sink.table_name == TABLE_NAME
 
+    def test_endpoint_url_accepted(self, _aws_env: None) -> None:
+        """endpoint_url parameter is threaded through to boto3.resource()."""
+        with mock_aws():
+            sink = DynamoDBSink(
+                table_name=TABLE_NAME,
+                region=REGION,
+                endpoint_url="http://localhost:9999",
+            )
+            assert sink.table_name == TABLE_NAME
+            assert sink._resource.meta.client._endpoint.host == "http://localhost:9999"
+
 
 # ------------------------------------------------------------------
 # Basic emit
@@ -237,6 +248,33 @@ class TestTTL:
             diff_days = (ttl_val - event_epoch) / 86400
             assert 364 <= diff_days <= 366
 
+    def test_ttl_disabled_when_zero(self, _aws_env: None) -> None:
+        with mock_aws():
+            sink = DynamoDBSink(
+                table_name=TABLE_NAME,
+                region=REGION,
+                ttl_days=0,
+                create_table=True,
+            )
+            event = make_test_event()
+            sink.emit(event)
+
+            client = boto3.client("dynamodb", region_name=REGION)
+            resp = client.scan(TableName=TABLE_NAME)
+            item = resp["Items"][0]
+            assert "ttl" not in item
+
+    def test_ttl_fallback_on_malformed_timestamp(self, dynamo_sink: DynamoDBSink) -> None:
+        event = make_test_event(timestamp="not-a-timestamp")
+        dynamo_sink.emit(event)
+
+        client = boto3.client("dynamodb", region_name=REGION)
+        resp = client.scan(TableName=TABLE_NAME)
+        item = resp["Items"][0]
+        assert "ttl" in item
+        ttl_val = int(item["ttl"]["N"])
+        assert ttl_val > 0
+
 
 # ------------------------------------------------------------------
 # GSI queries
@@ -321,6 +359,22 @@ class TestQueryByActor:
         results = dynamo_sink.query_by_actor("user_alpha", start="2026-04-03T00:00:00.000Z")
         assert len(results) == 2
 
+    def test_end_filter(self, dynamo_sink: DynamoDBSink) -> None:
+        _seed_events(dynamo_sink)
+        results = dynamo_sink.query_by_actor("user_alpha", end="2026-04-02T00:00:00.000Z")
+        assert len(results) == 1
+        assert results[0]["event_id"] == "aaaaaaaa-0000-0000-0000-000000000001"
+
+    def test_start_and_end_filter(self, dynamo_sink: DynamoDBSink) -> None:
+        _seed_events(dynamo_sink)
+        results = dynamo_sink.query_by_actor(
+            "user_alpha",
+            start="2026-04-02T00:00:00.000Z",
+            end="2026-04-04T00:00:00.000Z",
+        )
+        assert len(results) == 1
+        assert results[0]["event_id"] == "aaaaaaaa-0000-0000-0000-000000000003"
+
 
 class TestQueryDenials:
     def test_returns_denied_events(self, dynamo_sink: DynamoDBSink) -> None:
@@ -332,6 +386,18 @@ class TestQueryDenials:
     def test_start_filter(self, dynamo_sink: DynamoDBSink) -> None:
         _seed_events(dynamo_sink)
         results = dynamo_sink.query_denials(start="2026-04-04T00:00:00.000Z")
+        assert results == []
+
+    def test_end_filter(self, dynamo_sink: DynamoDBSink) -> None:
+        _seed_events(dynamo_sink)
+        results = dynamo_sink.query_denials(end="2026-04-04T00:00:00.000Z")
+        assert len(results) == 1
+
+    def test_start_and_end_no_match(self, dynamo_sink: DynamoDBSink) -> None:
+        _seed_events(dynamo_sink)
+        results = dynamo_sink.query_denials(
+            start="2026-04-04T00:00:00.000Z", end="2026-04-05T00:00:00.000Z"
+        )
         assert results == []
 
 
@@ -373,6 +439,28 @@ class TestFlattenedAttributes:
         assert "resource_id" not in item
         assert "error_type" not in item
         assert "actor_org_id" not in item
+        assert "correlation_request_id" not in item
+        assert "correlation_session_id" not in item
+
+    def test_correlation_fields_flattened(self, dynamo_sink: DynamoDBSink) -> None:
+        event = make_test_event(correlation={"request_id": "req_abc123", "session_id": "sess_xyz"})
+        dynamo_sink.emit(event)
+
+        client = boto3.client("dynamodb", region_name=REGION)
+        resp = client.scan(TableName=TABLE_NAME)
+        item = resp["Items"][0]
+        assert item["correlation_request_id"]["S"] == "req_abc123"
+        assert item["correlation_session_id"]["S"] == "sess_xyz"
+
+    def test_correlation_partial_fields(self, dynamo_sink: DynamoDBSink) -> None:
+        event = make_test_event(correlation={"request_id": "req_only"})
+        dynamo_sink.emit(event)
+
+        client = boto3.client("dynamodb", region_name=REGION)
+        resp = client.scan(TableName=TABLE_NAME)
+        item = resp["Items"][0]
+        assert item["correlation_request_id"]["S"] == "req_only"
+        assert "correlation_session_id" not in item
 
     def test_integrity_fields_extracted_when_present(self, dynamo_sink: DynamoDBSink) -> None:
         event = make_test_event(

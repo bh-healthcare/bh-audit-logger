@@ -179,7 +179,7 @@ from bh_audit_logger.sinks.dynamodb import DynamoDBSink
 sink = DynamoDBSink(
     table_name=os.environ.get("BH_AUDIT_TABLE", "bh_audit_events"),
     region=os.environ.get("BH_AUDIT_REGION"),       # None = boto3 default chain
-    ttl_days=int(os.environ.get("BH_AUDIT_TTL_DAYS", "2190")),
+    ttl_days=int(os.environ.get("BH_AUDIT_TTL_DAYS", "2190")) or None,
 )
 
 logger = AuditLogger(
@@ -198,7 +198,7 @@ logger = AuditLogger(
 |---|---|---|
 | `BH_AUDIT_TABLE` | `bh_audit_events` | DynamoDB table name |
 | `BH_AUDIT_REGION` | (boto3 default) | AWS region for the table |
-| `BH_AUDIT_TTL_DAYS` | `2190` (~6 years) | TTL in days; set to `0` to disable |
+| `BH_AUDIT_TTL_DAYS` | `2190` (~6 years) | TTL in days; `0` disables TTL (items never expire) |
 | `AWS_ACCESS_KEY_ID` | (from instance role) | AWS credentials (prefer IAM roles over keys) |
 | `AWS_SECRET_ACCESS_KEY` | (from instance role) | AWS credentials |
 | `AWS_DEFAULT_REGION` | — | Fallback region for boto3 |
@@ -213,7 +213,8 @@ In ECS, Lambda, or EKS, prefer **IAM task roles / execution roles** over access 
 
 ```python
 sink = DynamoDBSink(ttl_days=2190)   # 6-year HIPAA retention, then auto-delete
-sink = DynamoDBSink(ttl_days=None)   # disable TTL (manual retention management)
+sink = DynamoDBSink(ttl_days=None)   # disable TTL (items never expire)
+sink = DynamoDBSink(ttl_days=0)      # also disables TTL
 ```
 
 ### S3 archive (optional, for cost optimization)

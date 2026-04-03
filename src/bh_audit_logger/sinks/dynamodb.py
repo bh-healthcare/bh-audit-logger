@@ -38,9 +38,11 @@ class DynamoDBSink:
         table_name: DynamoDB table name (default ``"bh_audit_events"``).
         region: AWS region.  When *None*, uses boto3 default chain.
         ttl_days: Days until TTL expiration (default 2190 ≈ 6 years).
-                  Set to *None* to disable TTL.
+                  Set to *None* or *0* to disable TTL.
         create_table: If *True*, create table + GSIs on first use
                       (dev/test only -- never enable in production).
+        endpoint_url: Override the DynamoDB endpoint.  Use for
+                      DynamoDB Local (e.g. ``"http://localhost:8123"``).
     """
 
     def __init__(
@@ -49,6 +51,7 @@ class DynamoDBSink:
         region: str | None = None,
         ttl_days: int | None = 2190,
         create_table: bool = False,
+        endpoint_url: str | None = None,
     ) -> None:
         try:
             import boto3
@@ -63,6 +66,8 @@ class DynamoDBSink:
         kwargs: dict[str, Any] = {"service_name": "dynamodb"}
         if region is not None:
             kwargs["region_name"] = region
+        if endpoint_url is not None:
+            kwargs["endpoint_url"] = endpoint_url
         self._resource = boto3.resource(**kwargs)
         self._table = self._resource.Table(table_name)
 
@@ -93,6 +98,10 @@ class DynamoDBSink:
                     {"AttributeName": "outcome_status", "AttributeType": "S"},
                     {"AttributeName": "timestamp", "AttributeType": "S"},
                 ],
+                # http_route_template is projected but not populated by
+                # bh-audit-logger (it has no HTTP context).  bh-fastapi-audit
+                # writes this attribute when its middleware emits events, so
+                # the projection is here for forward-compatibility.
                 GlobalSecondaryIndexes=[
                     {
                         "IndexName": "patient_id-index",
@@ -202,6 +211,7 @@ class DynamoDBSink:
         """Query GSI1 for patient access history.
 
         Returns parsed audit events ordered by timestamp.
+        Automatically paginates through all result pages.
         """
         from boto3.dynamodb.conditions import Key
 
@@ -213,56 +223,76 @@ class DynamoDBSink:
         elif end:
             condition = condition & Key("timestamp").lte(end)
 
-        resp = self._table.query(
+        return self._paginated_query(
             IndexName="patient_id-index",
             KeyConditionExpression=condition,
         )
-        return self._parse_items(resp.get("Items", []))
 
     def query_by_actor(
         self,
         actor_id: str,
         start: str | None = None,
+        end: str | None = None,
     ) -> list[dict[str, Any]]:
         """Query GSI2 for user activity audit.
 
         Returns parsed audit events ordered by timestamp.
+        Automatically paginates through all result pages.
         """
         from boto3.dynamodb.conditions import Key
 
         condition = Key("actor_subject_id").eq(actor_id)
-        if start:
+        if start and end:
+            condition = condition & Key("timestamp").between(start, end)
+        elif start:
             condition = condition & Key("timestamp").gte(start)
+        elif end:
+            condition = condition & Key("timestamp").lte(end)
 
-        resp = self._table.query(
+        return self._paginated_query(
             IndexName="actor-index",
             KeyConditionExpression=condition,
         )
-        return self._parse_items(resp.get("Items", []))
 
     def query_denials(
         self,
         start: str | None = None,
+        end: str | None = None,
     ) -> list[dict[str, Any]]:
         """Query GSI3 for all DENIED outcomes.
 
         Returns parsed audit events ordered by timestamp.
+        Automatically paginates through all result pages.
         """
         from boto3.dynamodb.conditions import Key
 
         condition = Key("outcome_status").eq("DENIED")
-        if start:
+        if start and end:
+            condition = condition & Key("timestamp").between(start, end)
+        elif start:
             condition = condition & Key("timestamp").gte(start)
+        elif end:
+            condition = condition & Key("timestamp").lte(end)
 
-        resp = self._table.query(
+        return self._paginated_query(
             IndexName="outcome-index",
             KeyConditionExpression=condition,
         )
-        return self._parse_items(resp.get("Items", []))
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _paginated_query(self, **kwargs: Any) -> list[dict[str, Any]]:
+        """Execute a DynamoDB query, following all pagination tokens."""
+        items: list[dict[str, Any]] = []
+        while True:
+            resp = self._table.query(**kwargs)
+            items.extend(resp.get("Items", []))
+            if "LastEvaluatedKey" not in resp:
+                break
+            kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
+        return self._parse_items(items)
 
     def _flatten_for_dynamo(self, event: dict[str, Any]) -> dict[str, Any]:
         """Extract top-level attributes from nested event for GSI queries."""
@@ -271,6 +301,7 @@ class DynamoDBSink:
         action = event.get("action", {})
         resource = event.get("resource", {})
         outcome = event.get("outcome", {})
+        correlation = event.get("correlation", {})
 
         ts = event.get("timestamp", "")
         service_name = service.get("name", "unknown")
@@ -302,13 +333,17 @@ class DynamoDBSink:
             item["patient_id"] = resource["patient_id"]
         if outcome.get("error_type"):
             item["error_type"] = outcome["error_type"]
+        if correlation.get("request_id"):
+            item["correlation_request_id"] = correlation["request_id"]
+        if correlation.get("session_id"):
+            item["correlation_session_id"] = correlation["session_id"]
 
         integrity = event.get("integrity", {})
         if integrity:
             item["chain_hash"] = integrity.get("event_hash", "")
             item["prev_chain_hash"] = integrity.get("prev_event_hash", "")
 
-        if self._ttl_days is not None:
+        if self._ttl_days:
             item["ttl"] = self._compute_ttl(ts)
 
         return item
