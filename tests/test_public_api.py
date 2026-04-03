@@ -103,6 +103,7 @@ def test_all_exports_defined() -> None:
         "ServiceBlock",
         # Sinks
         "AuditSink",
+        "DynamoDBSink",
         "JsonlFileSink",
         "LoggingSink",
         "MemorySink",
@@ -128,6 +129,19 @@ def test_sinks_conform_to_protocol() -> None:
     assert isinstance(LoggingSink(), AuditSink)
     assert isinstance(MemorySink(), AuditSink)
     assert hasattr(JsonlFileSink, "emit")
+
+
+def test_dynamodb_sink_importable() -> None:
+    """DynamoDBSink should be importable when boto3 is available."""
+    import pytest
+
+    pytest.importorskip("boto3")
+    from bh_audit_logger import DynamoDBSink
+
+    assert hasattr(DynamoDBSink, "emit")
+    assert hasattr(DynamoDBSink, "query_by_patient")
+    assert hasattr(DynamoDBSink, "query_by_actor")
+    assert hasattr(DynamoDBSink, "query_denials")
 
 
 def test_audit_logger_has_expected_methods() -> None:

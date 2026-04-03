@@ -11,7 +11,13 @@ from bh_audit_logger.sinks.memory import MemorySink
 
 __all__ = [
     "AuditSink",
+    "DynamoDBSink",
     "JsonlFileSink",
     "LoggingSink",
     "MemorySink",
 ]
+
+try:
+    from bh_audit_logger.sinks.dynamodb import DynamoDBSink
+except ImportError:
+    pass

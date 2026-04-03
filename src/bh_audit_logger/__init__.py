@@ -37,6 +37,11 @@ from bh_audit_logger.sinks import (
     LoggingSink,
     MemorySink,
 )
+
+try:
+    from bh_audit_logger.sinks.dynamodb import DynamoDBSink
+except ImportError:
+    pass
 from bh_audit_logger.validation import ValidationError, validate_event, validate_event_minimal
 
 __all__ = [
@@ -61,6 +66,7 @@ __all__ = [
     "ServiceBlock",
     # Sinks
     "AuditSink",
+    "DynamoDBSink",
     "JsonlFileSink",
     "LoggingSink",
     "MemorySink",
