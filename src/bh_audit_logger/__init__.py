@@ -5,7 +5,7 @@ Cloud-agnostic utilities for emitting structured audit events
 conforming to bh-audit-schema v1.1 for behavioral healthcare systems.
 """
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 from bh_audit_logger._chain import canonical_serialize, compute_chain_hash
 from bh_audit_logger._chain_state import ChainState
@@ -28,6 +28,7 @@ from bh_audit_logger._types import (
     ServiceBlock,
 )
 from bh_audit_logger._validation import AuditValidationError, validate_event_schema
+from bh_audit_logger._verifier import VerifyFailure, VerifyResult, verify_chain
 from bh_audit_logger.config import AuditLoggerConfig
 from bh_audit_logger.logger import AuditLogger
 from bh_audit_logger.redaction import (
@@ -105,6 +106,10 @@ __all__ = [
     "contains_phi_tokens",
     "redact_tokens",
     "sanitize_error_message",
+    # Verifier
+    "VerifyFailure",
+    "VerifyResult",
+    "verify_chain",
     # Validation
     "AuditValidationError",
     "ValidationError",

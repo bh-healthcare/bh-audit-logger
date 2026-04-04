@@ -5,10 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.5.0] - 2026-04-02
 
 ### Added
 
+- **Verifier CLI** — `bh-audit verify` command for chain integrity verification.
+  Supports `--source file` (JSONL) and `--source dynamodb` (DynamoDB table query),
+  with `--format human` (default) and `--format json` (CI pipelines).
+  Exit codes: 0 = PASS, 1 = FAIL, 2 = ERROR.
+  Install with `pip install bh-audit-logger[cli]`.
+- **Programmatic verifier** — `verify_chain()`, `VerifyResult`, `VerifyFailure`
+  exported from top-level package for programmatic chain verification.
+- **Opt-in telemetry** — privacy-first, counter-based weekly usage reports.
+  No PII, no PHI, no event content. Off by default (`telemetry_enabled=False`).
+  See `docs/telemetry.md`.
+- **`[cli]` optional extra** — `typer>=0.9,<1` for the verifier CLI.
+- **Documentation**: `docs/telemetry.md`, `docs/threat-model.md`,
+  `docs/storage-patterns.md`.
 - **Chain hashing (integrity)** — tamper-evident audit trails via SHA-256
   chain hashing.  Each event gets an `integrity` block with `event_hash`,
   `prev_event_hash`, and `hash_alg`.
@@ -277,7 +290,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Events conform to bh-audit-schema v1.0
 - All required fields populated: schema_version, event_id, timestamp, service, actor, action, resource, outcome
 
-[Unreleased]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.4.0...HEAD
+[0.5.0]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.1.0...v0.2.0

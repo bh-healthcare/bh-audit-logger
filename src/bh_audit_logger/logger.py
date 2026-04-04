@@ -13,6 +13,7 @@ from typing import Any
 from bh_audit_logger._chain import compute_chain_hash
 from bh_audit_logger._chain_state import ChainState
 from bh_audit_logger._stats import AuditStats
+from bh_audit_logger._telemetry import TelemetryEmitter
 from bh_audit_logger._types import (
     ActionBlock,
     ActionType,
@@ -66,6 +67,19 @@ class AuditLogger:
             self._chain_state: ChainState | None = chain_state or ChainState()
         else:
             self._chain_state = None
+
+        if config.telemetry_enabled:
+            from bh_audit_logger import __version__
+
+            self._telemetry: TelemetryEmitter | None = TelemetryEmitter(
+                endpoint=config.telemetry_endpoint,
+                deployment_id_path=config.telemetry_deployment_id_path,
+                service_name=config.service_name,
+                environment=config.service_environment,
+                package_version=__version__,
+            )
+        else:
+            self._telemetry = None
 
     # ------------------------------------------------------------------
     # Public helpers
@@ -170,6 +184,11 @@ class AuditLogger:
             raise
         except Exception as exc:
             self._stats.increment("emit_failures_total")
+            if self._telemetry is not None:
+                try:
+                    self._telemetry.record_failure()
+                except Exception:
+                    pass
             self._handle_failure(
                 "Audit sink emit failed: event_id=%s service=%s action=%s resource=%s error=%s",
                 event,
@@ -177,6 +196,11 @@ class AuditLogger:
             )
         else:
             self._stats.increment("events_emitted_total")
+            if self._telemetry is not None:
+                try:
+                    self._telemetry.record(event)
+                except Exception:
+                    pass
 
     def _handle_failure(
         self,

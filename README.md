@@ -12,6 +12,16 @@ This library provides a small, boring, correct baseline for emitting structured 
 
 It is **not tied to FastAPI** (see [bh-fastapi-audit](https://github.com/bh-healthcare/bh-fastapi-audit) for middleware-based logging).
 
+## Install
+
+```bash
+pip install bh-audit-logger               # core (zero dependencies)
+pip install bh-audit-logger[dynamodb]      # + DynamoDB sink (boto3)
+pip install bh-audit-logger[cli]           # + bh-audit verify CLI (typer)
+pip install bh-audit-logger[jsonschema]    # + runtime schema validation
+pip install bh-audit-logger[all]           # everything
+```
+
 ## Quickstart
 
 ```bash
@@ -213,6 +223,7 @@ When targeting v1.0, DENIED outcomes are automatically downgraded to FAILURE (si
 |---|---|---|
 | `LoggingSink` *(default)* | Production | One compact JSON line per event via Python `logging`; stdout-friendly |
 | `JsonlFileSink` | Local dev, demos | Appends to a `.jsonl` file; thread-safe, flush-on-write by default |
+| `LedgerSink` | Tamper-evident files | JSONL file sink with built-in chain hashing (wraps `JsonlFileSink` + `ChainState`) |
 | `DynamoDBSink` | Production (AWS) | Single-table DynamoDB design with 3 GSIs for HIPAA compliance queries. `pip install bh-audit-logger[dynamodb]` |
 | `MemorySink` | Tests | Bounded optional (`maxlen`); use `len(sink)` and `sink.events` in assertions |
 
@@ -282,6 +293,69 @@ validate_event(event)  # raises ValidationError on failure
 ```
 
 Validates against the vendored bh-audit-schema v1.1 JSON schema included in the package.
+
+## Chain hashing (integrity)
+
+v0.5 adds tamper-evident audit trails via SHA-256 chain hashing. Each event gets an `integrity` block with `event_hash`, `prev_event_hash`, and `hash_alg`:
+
+```python
+config = AuditLoggerConfig(
+    service_name="my-service",
+    enable_integrity=True,       # SHA-256 chain hashing
+    hash_algorithm="sha256",     # or "sha384", "sha512"
+)
+logger = AuditLogger(config=config)
+```
+
+For DynamoDB-backed multi-process chain state:
+
+```python
+from bh_audit_logger import DynamoDBChainState
+
+chain_state = DynamoDBChainState(table_name="bh_chain_state", service_name="my-service")
+logger = AuditLogger(config=config, chain_state=chain_state)
+```
+
+## Verifier CLI
+
+v0.5 adds `bh-audit verify` for chain integrity verification:
+
+```bash
+pip install bh-audit-logger[cli]
+
+# Verify a JSONL ledger file
+bh-audit verify --source file --path /var/log/audit/events.jsonl
+
+# Verify from DynamoDB
+bh-audit verify --source dynamodb --table bh_audit_events --service intake-api
+
+# JSON output for CI pipelines
+bh-audit verify --source file --path events.jsonl --format json
+```
+
+Exit codes: `0` = PASS, `1` = FAIL, `2` = ERROR.
+
+Programmatic verification:
+
+```python
+from bh_audit_logger import verify_chain
+
+result = verify_chain(events)
+assert result.result == "PASS"
+```
+
+## Telemetry
+
+v0.5 adds opt-in, privacy-first telemetry. **Off by default.** No PII, no PHI, no event content -- only aggregate counters.
+
+```python
+config = AuditLoggerConfig(
+    service_name="my-service",
+    telemetry_enabled=True,  # explicit opt-in required
+)
+```
+
+See [docs/telemetry.md](docs/telemetry.md) for the full privacy commitment and payload format.
 
 ## Related projects
 

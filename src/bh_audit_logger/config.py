@@ -46,6 +46,11 @@ class AuditLoggerConfig:
     enable_integrity: bool = False
     hash_algorithm: Literal["sha256", "sha384", "sha512"] = "sha256"
 
+    # Telemetry (v0.5) -- off by default, opt-in only
+    telemetry_enabled: bool = False
+    telemetry_endpoint: str = "https://abt0rxi196.execute-api.us-east-1.amazonaws.com/v1/report"
+    telemetry_deployment_id_path: str = "/tmp/bh-audit/"
+
     def __post_init__(self) -> None:
         if not self.service_name or not self.service_name.strip():
             raise ValueError("service_name must be a non-empty string")
