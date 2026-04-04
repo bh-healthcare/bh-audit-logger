@@ -251,6 +251,13 @@ For `DynamoDBSink` production deployment (table creation, IAM, environment confi
 | `validate_events` | `bool` | `False` | Enable runtime JSON schema validation |
 | `validation_failure_mode` | `Literal` | `"drop"` | How to handle validation failures: `"drop"`, `"log_and_emit"`, `"raise"` |
 | `target_schema_version` | `Literal["1.0", "1.1"]` | `"1.1"` | Schema version for emitted events |
+| `failure_logger_name` | `str` | `"bh.audit.internal"` | Logger name for internal diagnostics |
+| `max_metadata_value_length` | `int` | `200` | Max string length for metadata values |
+| `enable_integrity` | `bool` | `False` | Enable chain hashing on emitted events |
+| `hash_algorithm` | `Literal["sha256", "sha384", "sha512"]` | `"sha256"` | Hash algorithm for chain hashing |
+| `telemetry_enabled` | `bool` | `False` | Enable opt-in anonymous telemetry |
+| `telemetry_endpoint` | `str` | `"https://…/v1/report"` | Telemetry receiver URL |
+| `telemetry_deployment_id_path` | `str` | `"/tmp/bh-audit/"` | Directory for anonymous deployment ID file |
 
 ## Typed event blocks
 
@@ -296,7 +303,7 @@ Validates against the vendored bh-audit-schema v1.1 JSON schema included in the 
 
 ## Chain hashing (integrity)
 
-v0.5 adds tamper-evident audit trails via SHA-256 chain hashing. Each event gets an `integrity` block with `event_hash`, `prev_event_hash`, and `hash_alg`:
+v1.0 adds tamper-evident audit trails via SHA-256 chain hashing. Each event gets an `integrity` block with `event_hash`, `prev_event_hash`, and `hash_alg`:
 
 ```python
 config = AuditLoggerConfig(
@@ -318,7 +325,7 @@ logger = AuditLogger(config=config, chain_state=chain_state)
 
 ## Verifier CLI
 
-v0.5 adds `bh-audit verify` for chain integrity verification:
+v1.0 adds `bh-audit verify` for chain integrity verification:
 
 ```bash
 pip install bh-audit-logger[cli]
@@ -346,7 +353,7 @@ assert result.result == "PASS"
 
 ## Telemetry
 
-v0.5 adds opt-in, privacy-first telemetry. **Off by default.** No PII, no PHI, no event content -- only aggregate counters.
+v1.0 adds opt-in, privacy-first telemetry. **Off by default.** No PII, no PHI, no event content -- only aggregate counters.
 
 ```python
 config = AuditLoggerConfig(

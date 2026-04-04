@@ -42,11 +42,11 @@ class AuditLoggerConfig:
     validation_failure_mode: Literal["drop", "log_and_emit", "raise"] = "drop"
     target_schema_version: Literal["1.0", "1.1"] = "1.1"
 
-    # Integrity chain (v0.5)
+    # Integrity chain (v1.0)
     enable_integrity: bool = False
     hash_algorithm: Literal["sha256", "sha384", "sha512"] = "sha256"
 
-    # Telemetry (v0.5) -- off by default, opt-in only
+    # Telemetry (v1.0) -- off by default, opt-in only
     telemetry_enabled: bool = False
     telemetry_endpoint: str = "https://abt0rxi196.execute-api.us-east-1.amazonaws.com/v1/report"
     telemetry_deployment_id_path: str = "/tmp/bh-audit/"

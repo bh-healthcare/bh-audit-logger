@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.5.0] - 2026-04-02
+## [1.0.0] - 2026-04-04
 
 ### Added
 
@@ -65,7 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Full event stored as compact JSON in `event_json` attribute; key fields
     flattened into top-level attributes for GSI projection.
 - **`[dynamodb]` optional extra** — `boto3>=1.34,<2` for DynamoDB sink.
-- **`[all]` convenience extra** — bundles `jsonschema` and `boto3`.
+- **`[all]` convenience extra** — bundles `jsonschema`, `boto3`, and `typer`.
 - **`docs/deploying-dynamodb.md`** — production deployment guide covering
   table creation (Terraform / AWS CLI), IAM minimum-privilege policy,
   environment variable configuration, retention strategy, capacity planning,
@@ -290,7 +290,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Events conform to bh-audit-schema v1.0
 - All required fields populated: schema_version, event_id, timestamp, service, actor, action, resource, outcome
 
-[0.5.0]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.4.0...v0.5.0
+[1.0.0]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.4.0...v1.0.0
 [0.4.0]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.1.0...v0.2.0

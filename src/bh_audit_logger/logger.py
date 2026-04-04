@@ -172,6 +172,11 @@ class AuditLogger:
                 self._stats.increment("integrity_events_total")
             except Exception:
                 self._stats.increment("chain_gaps_total")
+                if self._telemetry is not None:
+                    try:
+                        self._telemetry.record_chain_gap()
+                    except Exception:
+                        pass
                 self._failure_log.warning(
                     "Audit chain hash failed: event_id=%s service=%s; emitting without integrity",
                     event.get("event_id"),

@@ -21,11 +21,6 @@ from typing import Any
 
 _log = logging.getLogger("bh.audit.internal")
 
-_PROVISION = {
-    "ReadCapacityUnits": 5,
-    "WriteCapacityUnits": 5,
-}
-
 
 class DynamoDBSink:
     """Audit sink that writes events to DynamoDB.
@@ -121,7 +116,6 @@ class DynamoDBSink:
                                 "event_json",
                             ],
                         },
-                        "ProvisionedThroughput": _PROVISION,
                     },
                     {
                         "IndexName": "actor-index",
@@ -141,7 +135,6 @@ class DynamoDBSink:
                                 "event_json",
                             ],
                         },
-                        "ProvisionedThroughput": _PROVISION,
                     },
                     {
                         "IndexName": "outcome-index",
@@ -161,10 +154,9 @@ class DynamoDBSink:
                                 "event_json",
                             ],
                         },
-                        "ProvisionedThroughput": _PROVISION,
                     },
                 ],
-                ProvisionedThroughput=_PROVISION,
+                BillingMode="PAY_PER_REQUEST",
             )
             self._table.wait_until_exists()
         except self._resource.meta.client.exceptions.ResourceInUseException:
