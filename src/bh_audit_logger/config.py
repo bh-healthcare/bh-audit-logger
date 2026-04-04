@@ -42,6 +42,10 @@ class AuditLoggerConfig:
     validation_failure_mode: Literal["drop", "log_and_emit", "raise"] = "drop"
     target_schema_version: Literal["1.0", "1.1"] = "1.1"
 
+    # Integrity chain (v0.5)
+    enable_integrity: bool = False
+    hash_algorithm: Literal["sha256", "sha384", "sha512"] = "sha256"
+
     def __post_init__(self) -> None:
         if not self.service_name or not self.service_name.strip():
             raise ValueError("service_name must be a non-empty string")

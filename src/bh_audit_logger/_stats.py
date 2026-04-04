@@ -12,6 +12,8 @@ _CounterName = Literal[
     "emit_failures_total",
     "events_dropped_total",
     "validation_failures_total",
+    "integrity_events_total",
+    "chain_gaps_total",
 ]
 
 
@@ -35,6 +37,8 @@ class AuditStats:
             "emit_failures_total": 0,
             "events_dropped_total": 0,
             "validation_failures_total": 0,
+            "integrity_events_total": 0,
+            "chain_gaps_total": 0,
             "validation_time_ms_total": 0.0,
         }
 
@@ -70,6 +74,14 @@ class AuditStats:
     @property
     def validation_failures_total(self) -> int:
         return int(self._counters["validation_failures_total"])
+
+    @property
+    def integrity_events_total(self) -> int:
+        return int(self._counters["integrity_events_total"])
+
+    @property
+    def chain_gaps_total(self) -> int:
+        return int(self._counters["chain_gaps_total"])
 
     @property
     def validation_time_ms_total(self) -> float:

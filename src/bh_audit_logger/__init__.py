@@ -7,6 +7,8 @@ conforming to bh-audit-schema v1.1 for behavioral healthcare systems.
 
 __version__ = "0.4.0"
 
+from bh_audit_logger._chain import canonical_serialize, compute_chain_hash
+from bh_audit_logger._chain_state import ChainState
 from bh_audit_logger._queue import EmitQueue
 from bh_audit_logger._stats import AuditStats
 from bh_audit_logger._types import (
@@ -18,6 +20,8 @@ from bh_audit_logger._types import (
     CorrelationBlock,
     DataClassification,
     EmitFailureMode,
+    HashAlgorithm,
+    IntegrityBlock,
     OutcomeBlock,
     OutcomeStatus,
     ResourceBlock,
@@ -34,9 +38,15 @@ from bh_audit_logger.redaction import (
 from bh_audit_logger.sinks import (
     AuditSink,
     JsonlFileSink,
+    LedgerSink,
     LoggingSink,
     MemorySink,
 )
+
+try:
+    from bh_audit_logger._chain_state import DynamoDBChainState
+except ImportError:
+    pass
 
 try:
     from bh_audit_logger.sinks.dynamodb import DynamoDBSink
@@ -50,6 +60,10 @@ def __getattr__(name: str) -> object:
         raise ImportError(
             "DynamoDBSink requires boto3. Install with: pip install bh-audit-logger[dynamodb]"
         )
+    if name == "DynamoDBChainState":
+        raise ImportError(
+            "DynamoDBChainState requires boto3. Install with: pip install bh-audit-logger[dynamodb]"
+        )
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -60,6 +74,11 @@ __all__ = [
     "AuditLoggerConfig",
     "AuditStats",
     "EmitQueue",
+    # Chain hashing / integrity
+    "ChainState",
+    "DynamoDBChainState",
+    "canonical_serialize",
+    "compute_chain_hash",
     # Type definitions
     "ActionBlock",
     "ActionType",
@@ -69,6 +88,8 @@ __all__ = [
     "CorrelationBlock",
     "DataClassification",
     "EmitFailureMode",
+    "HashAlgorithm",
+    "IntegrityBlock",
     "OutcomeBlock",
     "OutcomeStatus",
     "ResourceBlock",
@@ -77,6 +98,7 @@ __all__ = [
     "AuditSink",
     "DynamoDBSink",
     "JsonlFileSink",
+    "LedgerSink",
     "LoggingSink",
     "MemorySink",
     # Redaction utilities

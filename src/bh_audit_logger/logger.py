@@ -10,6 +10,8 @@ import logging
 import time
 from typing import Any
 
+from bh_audit_logger._chain import compute_chain_hash
+from bh_audit_logger._chain_state import ChainState
 from bh_audit_logger._stats import AuditStats
 from bh_audit_logger._types import (
     ActionBlock,
@@ -37,20 +39,33 @@ class AuditLogger:
     Events are built as typed dicts, validated for required fields,
     then forwarded to a pluggable sink (default: LoggingSink).
 
+    When ``config.enable_integrity`` is *True*, each event gets an
+    ``integrity`` block injected (chain hash) before it reaches the sink.
+
     Args:
         config: AuditLoggerConfig with service identity and behaviour settings.
         sink: An AuditSink implementation. Defaults to LoggingSink.
+        chain_state: Optional ``ChainState`` for resuming a chain or
+                     sharing state across loggers.  When *None* and
+                     ``enable_integrity`` is *True*, an in-memory
+                     ``ChainState()`` is created automatically.
     """
 
     def __init__(
         self,
         config: AuditLoggerConfig,
         sink: AuditSink | None = None,
+        chain_state: ChainState | None = None,
     ) -> None:
         self._config = config
         self._sink: AuditSink = sink if sink is not None else LoggingSink()
         self._stats = AuditStats()
         self._failure_log = logging.getLogger(config.failure_logger_name)
+
+        if config.enable_integrity:
+            self._chain_state: ChainState | None = chain_state or ChainState()
+        else:
+            self._chain_state = None
 
     # ------------------------------------------------------------------
     # Public helpers
@@ -70,6 +85,11 @@ class AuditLogger:
     def stats(self) -> AuditStats:
         """Return the internal emission counters."""
         return self._stats
+
+    @property
+    def chain_state(self) -> ChainState | None:
+        """Return the chain state, or *None* if integrity is disabled."""
+        return self._chain_state
 
     # ------------------------------------------------------------------
     # Safe emission
@@ -127,6 +147,22 @@ class AuditLogger:
                 else:
                     self._stats.increment("events_dropped_total")
                     return
+
+        if self._chain_state is not None:
+            try:
+                integrity = compute_chain_hash(
+                    event, self._chain_state.last_hash, self._config.hash_algorithm
+                )
+                event = {**event, "integrity": integrity}
+                self._chain_state.advance(integrity["event_hash"])
+                self._stats.increment("integrity_events_total")
+            except Exception:
+                self._stats.increment("chain_gaps_total")
+                self._failure_log.warning(
+                    "Audit chain hash failed: event_id=%s service=%s; emitting without integrity",
+                    event.get("event_id"),
+                    event.get("service", {}).get("name"),
+                )
 
         try:
             self._sink.emit(event)
