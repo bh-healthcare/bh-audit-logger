@@ -1,7 +1,7 @@
 """
 DynamoDB chain-hashing integration tests.
 
-Targets the riskiest parts of the v0.5 alpha:
+Targets the riskiest parts of the v1.0 release:
 - DynamoDBChainState conditional-write retry and fallback
 - Simulated concurrent Lambda invocations racing to advance chain state
 - Full AuditLogger → enable_integrity → DynamoDBSink pipeline

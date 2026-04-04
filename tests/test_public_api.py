@@ -18,11 +18,14 @@ def test_public_api_imports() -> None:
         LoggingSink,
         MemorySink,
         ValidationError,
+        VerifyFailure,
+        VerifyResult,
         contains_phi_tokens,
         redact_tokens,
         sanitize_error_message,
         validate_event_minimal,
         validate_event_schema,
+        verify_chain,
     )
 
     assert AuditLogger is not None
@@ -39,6 +42,9 @@ def test_public_api_imports() -> None:
     assert callable(redact_tokens)
     assert callable(validate_event_minimal)
     assert callable(validate_event_schema)
+    assert callable(verify_chain)
+    assert VerifyResult is not None
+    assert VerifyFailure is not None
 
 
 def test_typed_event_blocks_importable() -> None:
@@ -75,7 +81,7 @@ def test_version_exposed() -> None:
     from bh_audit_logger import __version__
 
     assert isinstance(__version__, str)
-    assert __version__ == "0.4.0"
+    assert __version__ == "1.0.0"
 
 
 def test_all_exports_defined() -> None:
@@ -119,6 +125,10 @@ def test_all_exports_defined() -> None:
         "contains_phi_tokens",
         "redact_tokens",
         "sanitize_error_message",
+        # Verifier
+        "VerifyFailure",
+        "VerifyResult",
+        "verify_chain",
         # Validation
         "AuditValidationError",
         "ValidationError",
