@@ -50,6 +50,11 @@ class AuditLoggerConfig:
     telemetry_enabled: bool = False
     telemetry_endpoint: str = "https://abt0rxi196.execute-api.us-east-1.amazonaws.com/v1/report"
     telemetry_deployment_id_path: str = "/tmp/bh-audit/"
+    telemetry_flush_interval_seconds: float = 300.0
+    telemetry_event_flush_threshold: int = 500
+    telemetry_log_level: int = logging.WARNING
+    telemetry_http_timeout_s: float = 1.5
+    telemetry_flush_stale_on_init: bool = True
 
     def __post_init__(self) -> None:
         if not self.service_name or not self.service_name.strip():
@@ -61,6 +66,16 @@ class AuditLoggerConfig:
         if self.max_metadata_value_length < 1:
             raise ValueError(
                 f"max_metadata_value_length must be >= 1, got {self.max_metadata_value_length}"
+            )
+        if self.telemetry_flush_interval_seconds <= 0:
+            raise ValueError(
+                "telemetry_flush_interval_seconds must be > 0, "
+                f"got {self.telemetry_flush_interval_seconds}"
+            )
+        if self.telemetry_event_flush_threshold <= 0:
+            raise ValueError(
+                "telemetry_event_flush_threshold must be > 0, "
+                f"got {self.telemetry_event_flush_threshold}"
             )
         if isinstance(self.metadata_allowlist, set):
             object.__setattr__(self, "metadata_allowlist", frozenset(self.metadata_allowlist))

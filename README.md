@@ -257,7 +257,12 @@ For `DynamoDBSink` production deployment (table creation, IAM, environment confi
 | `hash_algorithm` | `Literal["sha256", "sha384", "sha512"]` | `"sha256"` | Hash algorithm for chain hashing |
 | `telemetry_enabled` | `bool` | `False` | Enable opt-in anonymous telemetry |
 | `telemetry_endpoint` | `str` | `"https://…/v1/report"` | Telemetry receiver URL |
-| `telemetry_deployment_id_path` | `str` | `"/tmp/bh-audit/"` | Directory for anonymous deployment ID file |
+| `telemetry_deployment_id_path` | `str` | `"/tmp/bh-audit/"` | Directory for deployment ID and state files |
+| `telemetry_flush_interval_seconds` | `float` | `300.0` | Flush after this many seconds elapsed |
+| `telemetry_event_flush_threshold` | `int` | `500` | Also flush when this many events accumulate |
+| `telemetry_log_level` | `int` | `logging.WARNING` | Log level for telemetry emission failures |
+| `telemetry_http_timeout_s` | `float` | `1.5` | Max seconds for the telemetry HTTP POST |
+| `telemetry_flush_stale_on_init` | `bool` | `True` | Flush stale disk state on cold start |
 
 ## Typed event blocks
 
