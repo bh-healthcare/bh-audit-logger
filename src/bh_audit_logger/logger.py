@@ -77,6 +77,11 @@ class AuditLogger:
                 service_name=config.service_name,
                 environment=config.service_environment,
                 package_version=__version__,
+                flush_interval_seconds=config.telemetry_flush_interval_seconds,
+                event_flush_threshold=config.telemetry_event_flush_threshold,
+                log_level=config.telemetry_log_level,
+                http_timeout_s=config.telemetry_http_timeout_s,
+                flush_stale_on_init=config.telemetry_flush_stale_on_init,
             )
         else:
             self._telemetry = None
@@ -104,6 +109,21 @@ class AuditLogger:
     def chain_state(self) -> ChainState | None:
         """Return the chain state, or *None* if integrity is disabled."""
         return self._chain_state
+
+    def close(self) -> None:
+        """Flush telemetry and release resources.
+
+        Call from a Lambda handler ``finally`` block or application shutdown.
+        Blocking, bounded by ``telemetry_http_timeout_s``.
+        """
+        if self._telemetry is not None:
+            self._telemetry.flush()
+
+    def __enter__(self) -> AuditLogger:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
 
     # ------------------------------------------------------------------
     # Safe emission

@@ -5,7 +5,7 @@ Cloud-agnostic utilities for emitting structured audit events
 conforming to bh-audit-schema v1.1 for behavioral healthcare systems.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 from bh_audit_logger._chain import canonical_serialize, compute_chain_hash
 from bh_audit_logger._chain_state import ChainState
