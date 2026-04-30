@@ -1,5 +1,7 @@
 # bh-audit-logger
 
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/bh-audit-logger?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/bh-audit-logger)
+
 Cloud-agnostic Python utilities for emitting **privacy-preserving audit events** for behavioral healthcare systems.
 
 Events conform to **bh-audit-schema v1.1**:
