@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-05-12
+
+### Changed
+
+- Vendored v1.1 schema updated to use `$defs` for `ActionType`, `OutcomeStatus`,
+  and `DataClassification` (upstream bh-audit-schema#5, no value changes).
+
+### Added
+
+- `tests/test_enum_parity.py` -- guards Python `Literal` types against drift
+  from vendored schema `$defs` enum arrays.
+
 ## [1.1.0] - 2026-04-13
 
 ### Added
@@ -320,6 +332,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Events conform to bh-audit-schema v1.0
 - All required fields populated: schema_version, event_id, timestamp, service, actor, action, resource, outcome
 
+[1.1.1]: https://github.com/bh-healthcare/bh-audit-logger/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/bh-healthcare/bh-audit-logger/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.4.0...v1.0.0
 [0.4.0]: https://github.com/bh-healthcare/bh-audit-logger/compare/v0.3.0...v0.4.0

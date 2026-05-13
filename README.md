@@ -287,11 +287,17 @@ from bh_audit_logger import (
 
 ## Schema conformance
 
-All events conform to [bh-audit-schema v1.1](https://github.com/bh-healthcare/bh-audit-schema). The v1.1 schema adds:
+All events conform to [bh-audit-schema v1.1](https://github.com/bh-healthcare/bh-audit-schema)
+(currently vendoring **v1.1.2**). The v1.1 schema adds:
 - `DENIED` outcome status (for authorization denials)
 - Conditional FAILURE validation (requires `error_type` + `error_message`)
 - `maxLength`/`minLength` bounds on all string fields
 - Scalar-only metadata enforcement
+
+The vendored v1.1 schema (as of 1.1.2) defines `ActionType`, `OutcomeStatus`, and
+`DataClassification` as named `$defs` referenced via `$ref`; the accepted values are
+unchanged but downstream code can now derive enum allowlists from the schema instead
+of duplicating them.
 
 ## Optional schema validation
 
